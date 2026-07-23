@@ -181,7 +181,13 @@ async def handle_ia_command(event, provider: str = None):
     
     try:
         provider_name = provider or "padrao"
-        processing_msg = await event.reply(f"Processando com {provider_name}...")
+        processing_msg = await event.reply(f"⏳ Processando com {provider_name}...")
+        
+        # Adicionar reação de processamento
+        try:
+            await event.react("⏳")
+        except:
+            pass  # Alguns clientes não suportam reações
         
         # Obter timeout dinamico
         timeout = ia_manager.get_timeout(provider)
@@ -203,14 +209,28 @@ async def handle_ia_command(event, provider: str = None):
             try:
                 await sender.send_message(response)
                 await processing_msg.delete()
-                await event.reply("Resposta enviada em privado!")
+                await event.reply("✅ Resposta enviada em privado!")
                 logger.info(f"Resposta privada enviada para {sender.id}")
+                # Reação de sucesso
+                try:
+                    await event.react("✅")
+                except:
+                    pass
             except Exception as e:
                 logger.warning(f"Erro ao enviar DM: {e}")
                 await edit_long_message(processing_msg, response)
+                try:
+                    await event.react("❌")
+                except:
+                    pass
         else:
             # Editar mensagem com suporte a mensagens longas
             await edit_long_message(processing_msg, response)
+            # Reação de sucesso
+            try:
+                await event.react("✅")
+            except:
+                pass
         
         # Adicionar pergunta e resposta ao histórico
         sender_name = sender.first_name or "Usuario"
@@ -223,11 +243,19 @@ async def handle_ia_command(event, provider: str = None):
     except FloodWaitError as e:
         logger.warning(f"FloodWait ao processar IA: aguardando {e.seconds}s")
         stats_manager.record_query(sender.id, provider or "padrao", success=False)
-        await event.reply(f"Muitas requisicoes. Aguarde {e.seconds}s")
+        await event.reply(f"⏸️ Muitas requisicoes. Aguarde {e.seconds}s")
+        try:
+            await event.react("❌")
+        except:
+            pass
     except Exception as e:
         logger.exception("Erro ao processar comando de IA")
         stats_manager.record_query(sender.id, provider or "padrao", success=False)
-        await event.reply("Erro ao processar pergunta")
+        await event.reply("❌ Erro ao processar pergunta")
+        try:
+            await event.react("❌")
+        except:
+            pass
 
 def register_handlers():
     """Registra handlers de eventos"""
