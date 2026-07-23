@@ -22,7 +22,7 @@ class SecurityManager:
     - Proteção contra spam
     """
     
-    def __init__(self, max_prompt_length: int = 2000, max_requests_per_minute: int = 10):
+    def __init__(self, max_prompt_length: int = 5000, max_requests_per_minute: int = 10):
         """
         Inicializa o gerenciador de segurança
         
