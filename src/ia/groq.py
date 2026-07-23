@@ -31,14 +31,33 @@ class GroqProvider(IAProvider):
             logger.info("Groq: Sessao fechada")
     
     async def process(self, prompt: str) -> str:
-        """Processa uma pergunta via Groq"""
+        """Processa uma pergunta via Groq com foco em Programação"""
         if not self.session:
             await self.init_session()
         
         try:
+            # Prompt de sistema para Programação
+            system_prompt = """Você é um especialista em programação e desenvolvimento de software.
+            
+Sua especialidade é:
+- Escrever código limpo, eficiente e bem documentado
+- Explicar conceitos de programação de forma clara
+- Resolver problemas de código e bugs
+- Sugerir melhores práticas e padrões de design
+- Trabalhar com múltiplas linguagens de programação
+
+Sempre forneça:
+1. Código bem formatado e comentado
+2. Explicações técnicas precisas
+3. Exemplos práticos quando possível
+4. Alternativas e otimizações
+
+Seja conciso mas completo nas respostas."""
+            
             payload = {
                 "model": self.model,
                 "messages": [
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 "max_tokens": 500,

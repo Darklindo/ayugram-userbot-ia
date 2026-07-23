@@ -30,14 +30,35 @@ class OpenRouterProvider(IAProvider):
             logger.info("OpenRouter: Sessao fechada")
     
     async def process(self, prompt: str) -> str:
-        """Processa uma pergunta via OpenRouter"""
+        """Processa uma pergunta via OpenRouter com múltiplas funcionalidades"""
         if not self.session:
             await self.init_session()
         
         try:
+            # Prompt de sistema para múltiplas funcionalidades
+            system_prompt = """Você é um assistente IA versátil e inteligente.
+            
+Você pode ajudar com:
+- Programação e desenvolvimento de software
+- Explicações científicas e acadêmicas
+- Criação de conteúdo criativo (poética, ficção, etc)
+- Análise de dados e estatísticas
+- Resolução de problemas e brainstorming
+- Traduções entre idiomas
+- Resumos e sínteses de textos
+- Pesquisa e coleta de informações
+
+Adapte seu estilo de resposta ao tipo de pergunta:
+- Para código: seja técnico e preciso
+- Para criação: seja criativo e inspirador
+- Para explicações: seja claro e acessível
+
+Sempre tente fornecer respostas úteis, precisas e bem estruturadas."""
+            
             payload = {
                 "model": self.model,
                 "messages": [
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 "max_tokens": 500,
