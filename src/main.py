@@ -11,6 +11,10 @@ from datetime import datetime
 from telethon import TelegramClient, events
 from telethon.tl.types import PeerUser
 import aiohttp
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente do arquivo .env
+load_dotenv("config/.env")
 
 # Configurações
 API_ID = int(os.getenv("TELEGRAM_API_ID", "0"))
