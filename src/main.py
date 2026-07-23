@@ -387,45 +387,56 @@ def register_handlers():
     @client.on(events.NewMessage(pattern=r"^\.help(?:\s|$)"))
     async def handle_help(event):
         """Comando .help"""
-        help_text = """JT IA Bot
+        help_text = """JT IA Bot - Comandos Completos
 
-Comandos de IA:
+IA:
 .ia [pergunta] - Usa IA padrao
 .iagroq [pergunta] - Força Groq
 .iarouter [pergunta] - Força OpenRouter
 .ai [groq|openrouter] - Define IA padrao
 
-RESPOSTA A MENSAGENS:
-Responda uma mensagem com .ia [pergunta] para usar a IA nela
+BUSCA:
+.search [termo] - Buscar na web
 
-LIMITES DE TOKENS:
-.ia -short [pergunta]   (150 chars)
-.ia -medium [pergunta]  (500 chars - padrao)
-.ia -long [pergunta]    (2000 chars)
-.ia -full [pergunta]    (4000 chars)
+PERSONAS:
+.persona [nome] - Mudar personalidade
+.persona list - Listar personas
 
-MODO PRIVADO:
-.ia -private [pergunta] (resposta em DM)
-.ia -short -private [pergunta] (combina flags)
-
-Permissoes (dono):
+PERMISSÕES (dono):
 .perm [ID] - Dar permissao
 .perm remove [ID] - Remover permissao
 .perm list - Listar usuarios
 
-Info:
-.status - Ver status
+BAN (dono):
+.ban [ID] - Banir usuario
+.unban [ID] - Desbanir usuario
+.ban list - Listar banidos
+
+ESTATÍSTICAS:
 .stats - Ver estatísticas gerais (dono)
 .mystats - Ver suas estatísticas
+
+FLAGS:
+.ia -short [pergunta]   (150 chars)
+.ia -medium [pergunta]  (500 chars)
+.ia -long [pergunta]    (2000 chars)
+.ia -full [pergunta]    (4000 chars)
+.ia -private [pergunta] (resposta em DM)
+
+RESPONDER MENSAGENS:
+Responda com .ia [pergunta]
+Funciona com: texto, audio, imagens
+
+INFO:
+.status - Ver status
 .help - Este menu
 
-Exemplo:
-.ia Qual eh a capital do Brasil?
-.iagroq Como criar uma API?
-.ai groq
-
-Responder mensagem:
-Responda: .ia Qual eh a capital?"""
+Exemplos:
+.ia Qual eh a capital?
+.search Python
+.persona dev
+.ia -private Teste
+.ia -short -private Pergunta"""
         await event.reply(help_text)
     
     @client.on(events.NewMessage(pattern=r"^\.status(?:\s|$)"))
@@ -458,6 +469,136 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
             stats_text = stats_manager.format_stats()
         
         await event.reply(stats_text)
+    
+    @client.on(events.NewMessage(pattern=r"^\.persona(?:\s|$)"))
+    async def handle_persona(event):
+        """Comando .persona para gerenciar personas"""
+        sender = await event.get_sender()
+        
+        if sender.id != CONFIG["OWNER_ID"]:
+            await event.reply("Apenas o dono pode usar este comando")
+            return
+        
+        try:
+            parts = event.raw_text.split(maxsplit=1)
+            
+            if len(parts) < 2:
+                await event.reply(personas_manager.list_personas())
+                return
+            
+            persona_name = parts[1].split()[0].lower()
+            
+            if persona_name == "list":
+                await event.reply(personas_manager.list_personas())
+            elif personas_manager.set_persona(persona_name):
+                emoji = personas_manager.get_persona_emoji()
+                await event.reply(f"{emoji} Persona alterada para: {persona_name}")
+            else:
+                await event.reply(f"Persona desconhecida: {persona_name}")
+        
+        except Exception as e:
+            logger.exception("Erro em .persona")
+            await event.reply("Erro ao processar comando")
+    
+    @client.on(events.NewMessage(pattern=r"^\.search(?:\s|$)"))
+    async def handle_search(event):
+        """Comando .search para buscar na web"""
+        sender = await event.get_sender()
+        
+        if not perm_manager.is_allowed(sender.id):
+            await event.reply("Voce nao tem permissao para usar IA")
+            return
+        
+        try:
+            parts = event.raw_text.split(maxsplit=1)
+            
+            if len(parts) < 2:
+                await event.reply(".search [termo] - Buscar na web")
+                return
+            
+            query = parts[1]
+            processing_msg = await event.reply("🔍 Buscando...")
+            
+            result = await web_search_manager.search(query)
+            response = web_search_manager.format_search_result(result)
+            
+            await processing_msg.edit(response)
+            await event.react("✅")
+        
+        except Exception as e:
+            logger.exception("Erro em .search")
+            await event.reply("❌ Erro ao buscar")
+            await event.react("❌")
+    
+    @client.on(events.NewMessage(pattern=r"^\.ban(?:\s|$)"))
+    async def handle_ban(event):
+        """Comando .ban para banir usuarios"""
+        sender = await event.get_sender()
+        
+        if sender.id != CONFIG["OWNER_ID"]:
+            await event.reply("Apenas o dono pode usar este comando")
+            return
+        
+        try:
+            parts = event.raw_text.split(maxsplit=1)
+            
+            if len(parts) < 2:
+                msg = ".ban [ID] - Banir usuario\n"
+                msg += ".ban list - Listar banidos"
+                await event.reply(msg)
+                return
+            
+            args = parts[1].split()
+            
+            if args[0].lower() == "list":
+                banned = perm_manager.get_banned()
+                if not banned:
+                    await event.reply("Nenhum usuario banido")
+                else:
+                    msg = "Usuarios banidos:\n"
+                    for uid in banned:
+                        msg += f"• {uid}\n"
+                    await event.reply(msg)
+            else:
+                user_id = int(args[0])
+                if perm_manager.ban_user(user_id):
+                    await event.reply(f"✅ Usuario {user_id} banido")
+                else:
+                    await event.reply(f"❌ Erro ao banir {user_id}")
+        
+        except (ValueError, IndexError):
+            await event.reply("Erro: Formato invalido")
+        except Exception as e:
+            logger.exception("Erro em .ban")
+            await event.reply("Erro ao processar comando")
+    
+    @client.on(events.NewMessage(pattern=r"^\.unban(?:\s|$)"))
+    async def handle_unban(event):
+        """Comando .unban para desbanir usuarios"""
+        sender = await event.get_sender()
+        
+        if sender.id != CONFIG["OWNER_ID"]:
+            await event.reply("Apenas o dono pode usar este comando")
+            return
+        
+        try:
+            parts = event.raw_text.split(maxsplit=1)
+            
+            if len(parts) < 2:
+                await event.reply(".unban [ID] - Desbanir usuario")
+                return
+            
+            user_id = int(parts[1].split()[0])
+            if perm_manager.unban_user(user_id):
+                await event.reply(f"✅ Banimento removido de {user_id}")
+            else:
+                await event.reply(f"❌ Erro ao desbanir {user_id}")
+        
+        except (ValueError, IndexError):
+            await event.reply("Erro: Formato invalido")
+        except Exception as e:
+            logger.exception("Erro em .unban")
+            await event.reply("Erro ao processar comando")
     
     logger.info("Handlers registrados com sucesso")
 
@@ -578,132 +719,3 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 
-    @client.on(events.NewMessage(pattern=r"^\.ban(?:\s|$)"))
-    async def handle_ban(event):
-        """Comando .ban para banir usuarios"""
-        sender = await event.get_sender()
-        
-        if sender.id != CONFIG["OWNER_ID"]:
-            await event.reply("Apenas o dono pode usar este comando")
-            return
-        
-        try:
-            parts = event.raw_text.split(maxsplit=1)
-            
-            if len(parts) < 2:
-                msg = ".ban [ID] - Banir usuario\n"
-                msg += ".ban list - Listar banidos"
-                await event.reply(msg)
-                return
-            
-            args = parts[1].split()
-            
-            if args[0].lower() == "list":
-                banned = perm_manager.get_banned()
-                if not banned:
-                    await event.reply("Nenhum usuario banido")
-                else:
-                    msg = "Usuarios banidos:\n"
-                    for uid in banned:
-                        msg += f"• {uid}\n"
-                    await event.reply(msg)
-            else:
-                user_id = int(args[0])
-                if perm_manager.ban_user(user_id):
-                    await event.reply(f"✅ Usuario {user_id} banido")
-                else:
-                    await event.reply(f"❌ Erro ao banir {user_id}")
-        
-        except (ValueError, IndexError):
-            await event.reply("Erro: Formato invalido")
-        except Exception as e:
-            logger.exception("Erro em .ban")
-            await event.reply("Erro ao processar comando")
-    
-    @client.on(events.NewMessage(pattern=r"^\.unban(?:\s|$)"))
-    async def handle_unban(event):
-        """Comando .unban para desbanir usuarios"""
-        sender = await event.get_sender()
-        
-        if sender.id != CONFIG["OWNER_ID"]:
-            await event.reply("Apenas o dono pode usar este comando")
-            return
-        
-        try:
-            parts = event.raw_text.split(maxsplit=1)
-            
-            if len(parts) < 2:
-                await event.reply(".unban [ID] - Desbanir usuario")
-                return
-            
-            user_id = int(parts[1].split()[0])
-            if perm_manager.unban_user(user_id):
-                await event.reply(f"✅ Banimento removido de {user_id}")
-            else:
-                await event.reply(f"❌ Erro ao desbanir {user_id}")
-        
-        except (ValueError, IndexError):
-            await event.reply("Erro: Formato invalido")
-        except Exception as e:
-            logger.exception("Erro em .unban")
-            await event.reply("Erro ao processar comando")
-
-    @client.on(events.NewMessage(pattern=r"^\.persona(?:\s|$)"))
-    async def handle_persona(event):
-        """Comando .persona para gerenciar personas"""
-        sender = await event.get_sender()
-        
-        if sender.id != CONFIG["OWNER_ID"]:
-            await event.reply("Apenas o dono pode usar este comando")
-            return
-        
-        try:
-            parts = event.raw_text.split(maxsplit=1)
-            
-            if len(parts) < 2:
-                await event.reply(personas_manager.list_personas())
-                return
-            
-            persona_name = parts[1].split()[0].lower()
-            
-            if persona_name == "list":
-                await event.reply(personas_manager.list_personas())
-            elif personas_manager.set_persona(persona_name):
-                emoji = personas_manager.get_persona_emoji()
-                await event.reply(f"{emoji} Persona alterada para: {persona_name}")
-            else:
-                await event.reply(f"Persona desconhecida: {persona_name}")
-        
-        except Exception as e:
-            logger.exception("Erro em .persona")
-            await event.reply("Erro ao processar comando")
-    
-    @client.on(events.NewMessage(pattern=r"^\.search(?:\s|$)"))
-    async def handle_search(event):
-        """Comando .search para buscar na web"""
-        sender = await event.get_sender()
-        
-        if not perm_manager.is_allowed(sender.id):
-            await event.reply("Voce nao tem permissao para usar IA")
-            return
-        
-        try:
-            parts = event.raw_text.split(maxsplit=1)
-            
-            if len(parts) < 2:
-                await event.reply(".search [termo] - Buscar na web")
-                return
-            
-            query = parts[1]
-            processing_msg = await event.reply("🔍 Buscando...")
-            
-            result = await web_search_manager.search(query)
-            response = web_search_manager.format_search_result(result)
-            
-            await processing_msg.edit(response)
-            await event.react("✅")
-        
-        except Exception as e:
-            logger.exception("Erro em .search")
-            await event.reply("❌ Erro ao buscar")
-            await event.react("❌")
