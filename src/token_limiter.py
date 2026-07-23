@@ -32,10 +32,10 @@ class TokenLimiter:
     
     def parse_flags(self, text: str) -> tuple:
         """
-        Parse de flags de limite no texto
-        Retorna: (texto_limpo, limite)
+        Parse de flags de limite e modo no texto
+        Retorna: (texto_limpo, limite, modo_privado)
         
-        Exemplo: ".ia -short Qual eh a capital?" → ("Qual eh a capital?", "short")
+        Exemplo: ".ia -short -private Qual eh a capital?" → ("Qual eh a capital?", "short", True)
         """
         flags = {
             "-short": "short",
@@ -45,16 +45,25 @@ class TokenLimiter:
         }
         
         limit = self.default_limit
+        private = False
         text_clean = text
         
+        # Procurar por -private
+        if "-private" in text:
+            private = True
+            text_clean = text_clean.replace("-private", "")
+            logger.debug("Flag -private encontrada")
+        
+        # Procurar por limite
         for flag, limit_name in flags.items():
-            if flag in text:
+            if flag in text_clean:
                 limit = limit_name
-                text_clean = text.replace(flag, "").strip()
+                text_clean = text_clean.replace(flag, "").strip()
                 logger.debug(f"Flag encontrada: {flag} → limite: {limit}")
                 break
         
-        return text_clean, limit
+        text_clean = text_clean.strip()
+        return text_clean, limit, private
     
     def truncate(self, text: str, limit: str = None) -> str:
         """

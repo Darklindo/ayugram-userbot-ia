@@ -157,8 +157,8 @@ async def handle_ia_command(event, provider: str = None):
     
     prompt = parts[1]
     
-    # Parse de flags de limite de tokens
-    prompt, token_limit = token_limiter.parse_flags(prompt)
+    # Parse de flags de limite de tokens e modo privado
+    prompt, token_limit, private_mode = token_limiter.parse_flags(prompt)
     
     # Adicionar histórico de conversa para melhor contexto
     chat_id = event.chat_id
@@ -198,8 +198,19 @@ async def handle_ia_command(event, provider: str = None):
         # Aplicar limite de tokens
         response = token_limiter.truncate(response, token_limit)
         
-        # Editar mensagem com suporte a mensagens longas
-        await edit_long_message(processing_msg, response)
+        # Se modo privado, enviar em DM
+        if private_mode:
+            try:
+                await sender.send_message(response)
+                await processing_msg.delete()
+                await event.reply("Resposta enviada em privado!")
+                logger.info(f"Resposta privada enviada para {sender.id}")
+            except Exception as e:
+                logger.warning(f"Erro ao enviar DM: {e}")
+                await edit_long_message(processing_msg, response)
+        else:
+            # Editar mensagem com suporte a mensagens longas
+            await edit_long_message(processing_msg, response)
         
         # Adicionar pergunta e resposta ao histórico
         sender_name = sender.first_name or "Usuario"
@@ -338,6 +349,10 @@ LIMITES DE TOKENS:
 .ia -medium [pergunta]  (500 chars - padrao)
 .ia -long [pergunta]    (2000 chars)
 .ia -full [pergunta]    (4000 chars)
+
+MODO PRIVADO:
+.ia -private [pergunta] (resposta em DM)
+.ia -short -private [pergunta] (combina flags)
 
 Permissoes (dono):
 .perm [ID] - Dar permissao
