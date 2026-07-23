@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 JT IA UserBot para Telegram
-Bot profissional com multiplos provedores de IA
+Bot profissional com múltiplos provedores de IA
+Arquitetura refatorada com handlers modulares
 """
 
 import os
@@ -30,12 +31,23 @@ from token_limiter import TokenLimiter
 from stats_manager import StatsManager
 from utils import edit_long_message, split_message
 
+# Importar handlers modulares
+from handlers import (
+    register_ia_handlers,
+    register_admin_handlers,
+    register_search_handlers,
+    register_persona_handlers,
+    register_stats_handlers,
+    register_help_handlers,
+)
+
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(levelname)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
 
+# Variáveis globais
 CONFIG = None
 client = None
 perm_manager = None
@@ -50,17 +62,19 @@ stats_manager = StatsManager()
 cooldown_manager = CooldownManager(default_cooldown=5)
 reconnect_task = None
 
+
 async def load_configuration():
-    """Carrega e valida configuracao"""
+    """Carrega e valida configuração"""
     global CONFIG
     try:
         CONFIG = load_config()
         validate_config(CONFIG)
-        logger.info("Configuracao carregada com sucesso")
+        logger.info("Configuração carregada com sucesso")
         return True
     except Exception as e:
-        logger.exception("Erro ao carregar configuracao")
+        logger.exception("Erro ao carregar configuração")
         return False
+
 
 async def init_managers():
     """Inicializa gerenciadores"""
@@ -100,6 +114,7 @@ async def init_managers():
         logger.exception("Erro ao inicializar gerenciadores")
         return False
 
+
 async def authenticate_client():
     """Autentica o cliente com tratamento de erros"""
     global client
@@ -111,16 +126,16 @@ async def authenticate_client():
         
         if await client.is_user_authorized():
             me = await client.get_me()
-            logger.info(f"Ja autenticado como: {me.first_name}")
+            logger.info(f"Já autenticado como: {me.first_name}")
             return True
         
-        logger.info(f"Enviando codigo para {CONFIG['PHONE_NUMBER']}...")
+        logger.info(f"Enviando código para {CONFIG['PHONE_NUMBER']}...")
         await client.send_code_request(CONFIG["PHONE_NUMBER"])
         
         try:
-            code = getpass.getpass("[*] Digite o codigo: ")
+            code = getpass.getpass("[*] Digite o código: ")
         except:
-            code = input("[*] Digite o codigo: ")
+            code = input("[*] Digite o código: ")
         
         try:
             await client.sign_in(CONFIG["PHONE_NUMBER"], code)
@@ -145,24 +160,25 @@ async def authenticate_client():
             return True
     
     except PhoneNumberInvalidError:
-        logger.error("Numero de telefone invalido")
+        logger.error("Número de telefone inválido")
         return False
     except FloodWaitError as e:
         logger.error(f"Muitas tentativas. Aguarde {e.seconds}s")
         return False
     except Exception as e:
-        logger.exception("Erro na autenticacao")
+        logger.exception("Erro na autenticação")
         return False
+
 
 async def handle_ia_command(event, provider: str = None):
     """
     Handler unificado para todos os comandos de IA
-    Reduz duplicacao de codigo
+    Reduz duplicação de código
     """
     sender = await event.get_sender()
     
     if not await perm_manager.is_allowed(sender.id):
-        await event.reply("Voce nao tem permissao")
+        await event.reply("Você não tem permissão")
         return
     
     # Verificar cooldown ANTES de processar
@@ -172,7 +188,6 @@ async def handle_ia_command(event, provider: str = None):
         return
     
     # Extrair prompt: divide em comando e resto
-    # Mais seguro que str.replace() que remove todas as ocorrências
     parts = event.raw_text.split(maxsplit=1)
     if len(parts) < 2:
         if provider:
@@ -198,20 +213,17 @@ async def handle_ia_command(event, provider: str = None):
         try:
             replied_msg = await event.get_reply_message()
             if replied_msg and replied_msg.text:
-                # Combinar texto da mensagem original com a pergunta
                 prompt = f"{replied_msg.text}\n\nPergunta: {prompt}"
         except Exception as e:
             logger.warning(f"Erro ao obter mensagem respondida: {e}")
     
-    # Nota: Cooldown será definido APÓS sucesso da IA (veja no final do bloco try)
+    # Nota: Cooldown será definido APÓS sucesso da IA
     
     try:
-        provider_name = provider or "padrao"
+        provider_name = provider or "padrão"
         processing_msg = await event.reply(f"⏳ Processando com {provider_name}...")
         
-        # Adicionar reação de processamento# Alguns clientes não suportam reações
-        
-        # Obter timeout dinamico
+        # Obter timeout dinâmico
         timeout = ia_manager.get_timeout(provider)
         
         # Processar com timeout
@@ -235,7 +247,6 @@ async def handle_ia_command(event, provider: str = None):
         # Se modo privado, enviar em DM
         if private_mode:
             try:
-                # Validar se usuário aceitou DM
                 await sender.send_message(response)
                 await processing_msg.delete()
                 await event.reply("✅ Resposta enviada em privado!")
@@ -257,386 +268,82 @@ async def handle_ia_command(event, provider: str = None):
                 await event.reply("❌ Erro ao enviar resposta")
         
         # Adicionar pergunta e resposta ao histórico com (chat_id, sender_id)
-        sender_name = sender.first_name or "Usuario"
-        await history_manager.add_message(chat_id, sender.id, sender_name, parts[1])  # Pergunta original
-        await history_manager.add_message(chat_id, sender.id, "Bot", response[:200])  # Resposta (limitada)
+        sender_name = sender.first_name or "Usuário"
+        await history_manager.add_message(chat_id, sender.id, sender_name, parts[1])
+        await history_manager.add_message(chat_id, sender.id, "Bot", response[:200])
         
         # Registrar nas estatísticas
-        await stats_manager.record_query(sender.id, provider or "padrao", success=True)
+        await stats_manager.record_query(sender.id, provider or "padrão", success=True)
         
         # ✅ APLICAR COOLDOWN APÓS SUCESSO (não antes)
         await cooldown_manager.set_cooldown(sender.id)
     
     except FloodWaitError as e:
         logger.warning(f"FloodWait ao processar IA: aguardando {e.seconds}s")
-        await stats_manager.record_query(sender.id, provider or "padrao", success=False)
-        await event.reply(f"⏸️ Muitas requisicoes. Aguarde {e.seconds}s")
+        await stats_manager.record_query(sender.id, provider or "padrão", success=False)
+        await event.reply(f"⏸️ Muitas requisições. Aguarde {e.seconds}s")
     except Exception as e:
         logger.exception("Erro ao processar comando de IA")
-        await stats_manager.record_query(sender.id, provider or "padrao", success=False)
+        await stats_manager.record_query(sender.id, provider or "padrão", success=False)
         await event.reply("❌ Erro ao processar pergunta")
-        # NÃO aplicar cooldown em caso de erro
 
-def register_handlers():
-    """Registra handlers de eventos"""
-    
-    @client.on(events.NewMessage(pattern=r"^\.ia(?:\s|$)"))
-    async def handle_ia(event):
-        """Comando .ia [pergunta] - usa IA padrao"""
-        await handle_ia_command(event, provider=None)
-    
 
-    @client.on(events.NewMessage(pattern=r"^\.iagroq(?:\s|$)"))
-    async def handle_ia_groq(event):
-        """Comando .iagroq [pergunta] - força Groq"""
-        await handle_ia_command(event, provider="groq")
+async def register_all_handlers():
+    """Registra todos os handlers de eventos"""
+    logger.info("Registrando handlers...")
     
-    @client.on(events.NewMessage(pattern=r"^\.iarouter(?:\s|$)"))
-    async def handle_ia_openrouter(event):
-        """Comando .iarouter [pergunta] - força OpenRouter"""
-        await handle_ia_command(event, provider="openrouter")
+    await register_ia_handlers(
+        client, CONFIG, perm_manager, ia_manager,
+        cooldown_manager, history_manager, token_limiter,
+        stats_manager, edit_long_message
+    )
     
-    @client.on(events.NewMessage(pattern=r"^\.ai(?:\s|$)"))
-    async def handle_ai_config(event):
-        """Comando .ai [gemini|groq|openrouter] - define IA padrao"""
-        sender = await event.get_sender()
-        
-        if sender.id != CONFIG["OWNER_ID"]:
-            await event.reply("Apenas o dono pode usar este comando")
-            return
-        
-        parts = event.raw_text.split(maxsplit=1)
-        
-        if len(parts) < 2:
-            current = ia_manager.get_current_provider()
-            available = ", ".join(ia_manager.get_available_providers())
-            msg = f"IA padrao: {current}\n"
-            msg += f"Disponiveis: {available}\n\n"
-            msg += ".ai groq\n"
-            msg += ".ai openrouter"
-            await event.reply(msg)
-            return
-        
-        provider = parts[1].split()[0].lower()  # Pega primeira palavra
-        success = await ia_manager.switch_provider(provider)
-        
-        if success:
-            await event.reply(f"IA padrao mudou para: {provider}")
-        else:
-            await event.reply(f"Erro ao mudar para {provider}")
-            logger.warning(f"Falha ao mudar para {provider}")
+    await register_admin_handlers(client, CONFIG, perm_manager)
+    await register_search_handlers(client, perm_manager, web_search_manager, edit_long_message)
+    await register_persona_handlers(client, CONFIG, personas_manager)
+    await register_stats_handlers(client, CONFIG, stats_manager, ia_manager, perm_manager)
+    await register_help_handlers(client)
     
-    @client.on(events.NewMessage(pattern=r"^\.perm(?:\s|$)"))
-    async def handle_perm(event):
-        """Comando .perm para gerenciar permissoes"""
-        sender = await event.get_sender()
-        
-        if sender.id != CONFIG["OWNER_ID"]:
-            await event.reply("Apenas o dono pode usar este comando")
-            return
-        
-        try:
-            parts = event.raw_text.split(maxsplit=1)
-            
-            if len(parts) < 2:
-                msg = ".perm [ID] - Dar permissao\n"
-                msg += ".perm remove [ID] - Remover permissao\n"
-                msg += ".perm list - Listar usuarios"
-                await event.reply(msg)
-                return
-            
-            # Parse argumentos: .perm [ID|remove|list]
-            args = parts[1].split()
-            
-            if args[0].lower() == "list":
-                users = await perm_manager.get_all()
-                if not users:
-                    await event.reply("Nenhum usuario com permissao")
-                else:
-                    msg = "Usuarios com permissao:\n"
-                    for uid in users:
-                        msg += f"• {uid}\n"
-                    await event.reply(msg)
-            
-            elif args[0].lower() == "remove" and len(args) > 1:
-                user_id = int(args[1])
-                if await perm_manager.remove_user(user_id):
-                    await event.reply(f"Permissao removida de {user_id}")
-                else:
-                    await event.reply(f"Usuario {user_id} nao tinha permissao")
-            
-            else:
-                user_id = int(args[0])
-                if await perm_manager.add_user(user_id):
-                    await event.reply(f"Permissao concedida para {user_id}")
-                else:
-                    await event.reply(f"Usuario {user_id} ja tem permissao")
-        
-        except (ValueError, IndexError):
-            await event.reply("Erro: Formato invalido")
-        except Exception as e:
-            logger.exception("Erro em .perm")
-            await event.reply("Erro ao processar comando")
-    
-    @client.on(events.NewMessage(pattern=r"^\.help(?:\s|$)"))
-    async def handle_help(event):
-        """Comando .help"""
-        help_text = """JT IA Bot - Comandos Completos
+    logger.info("✅ Todos os handlers registrados com sucesso")
 
-IA:
-.ia [pergunta] - Usa IA padrao
-.iagroq [pergunta] - Força Groq
-.iarouter [pergunta] - Força OpenRouter
-.ai [groq|openrouter] - Define IA padrao
-
-BUSCA:
-.search [termo] - Buscar na web
-
-PERSONAS:
-.persona [nome] - Mudar personalidade
-.persona list - Listar personas
-
-PERMISSÕES (dono):
-.perm [ID] - Dar permissao
-.perm remove [ID] - Remover permissao
-.perm list - Listar usuarios
-
-BAN (dono):
-.ban [ID] - Banir usuario
-.unban [ID] - Desbanir usuario
-.ban list - Listar banidos
-
-ESTATÍSTICAS:
-.stats - Ver estatísticas gerais (dono)
-.mystats - Ver suas estatísticas
-
-FLAGS:
-.ia -short [pergunta]   (150 chars)
-.ia -medium [pergunta]  (500 chars)
-.ia -long [pergunta]    (2000 chars)
-.ia -full [pergunta]    (4000 chars)
-.ia -private [pergunta] (resposta em DM)
-
-RESPONDER MENSAGENS:
-Responda com .ia [pergunta]
-Funciona com: texto, audio, imagens
-
-INFO:
-.status - Ver status
-.help - Este menu
-
-Exemplos:
-.ia Qual eh a capital?
-.search Python
-.persona dev
-.ia -private Teste
-.ia -short -private Pergunta"""
-        await event.reply(help_text)
-    
-    @client.on(events.NewMessage(pattern=r"^\.status(?:\s|$)"))
-    async def handle_status(event):
-        """Comando .status"""
-        sender = await event.get_sender()
-        current_ia = ia_manager.get_current_provider()
-        
-        status_text = f"""Status:
-Usuario: {sender.first_name}
-ID: {sender.id}
-Permissao: {'SIM' if perm_manager.is_allowed(sender.id) else 'NAO'}
-IA Padrao: {current_ia}
-Hora: {datetime.now().strftime('%H:%M:%S')}"""
-        await event.reply(status_text)
-    
-    @client.on(events.NewMessage(pattern=r"^\.(stats|mystats)(?:\s|$)"))
-    async def handle_stats(event):
-        """Comando .stats ou .mystats"""
-        sender = await event.get_sender()
-        
-        if event.raw_text.startswith(".mystats"):
-            # Estatísticas do usuário
-            stats_text = await stats_manager.format_user_stats(sender.id)
-        else:
-            # Estatísticas gerais (apenas dono)
-            if sender.id != CONFIG["OWNER_ID"]:
-                await event.reply("Apenas o dono pode ver estatísticas gerais")
-                return
-            stats_text = await stats_manager.format_stats()
-        
-        await event.reply(stats_text)
-    
-    @client.on(events.NewMessage(pattern=r"^\.persona(?:\s|$)"))
-    async def handle_persona(event):
-        """Comando .persona para gerenciar personas"""
-        sender = await event.get_sender()
-        
-        if sender.id != CONFIG["OWNER_ID"]:
-            await event.reply("Apenas o dono pode usar este comando")
-            return
-        
-        try:
-            parts = event.raw_text.split(maxsplit=1)
-            
-            if len(parts) < 2:
-                await event.reply(await personas_manager.list_personas())
-                return
-            
-            persona_name = parts[1].split()[0].lower()
-            
-            if persona_name == "list":
-                await event.reply(await personas_manager.list_personas())
-            elif await personas_manager.set_persona(persona_name):
-                emoji = await personas_manager.get_persona_emoji()
-                await event.reply(f"{emoji} Persona alterada para: {persona_name}")
-            else:
-                await event.reply(f"Persona desconhecida: {persona_name}")
-        
-        except Exception as e:
-            logger.exception("Erro em .persona")
-            await event.reply("Erro ao processar comando")
-    
-    @client.on(events.NewMessage(pattern=r"^\.search(?:\s|$)"))
-    async def handle_search(event):
-        """Comando .search para buscar na web"""
-        sender = await event.get_sender()
-        
-        if not await perm_manager.is_allowed(sender.id):
-            await event.reply("Voce nao tem permissao para usar IA")
-            return
-        
-        try:
-            parts = event.raw_text.split(maxsplit=1)
-            
-            if len(parts) < 2:
-                await event.reply(".search [termo] - Buscar na web")
-                return
-            
-            query = parts[1]
-            processing_msg = await event.reply("🔍 Buscando...")
-            
-            result = await web_search_manager.search(query)
-            response = web_search_manager.format_search_result(result)
-            
-            # Usar edit_long_message para suportar respostas longas (>4096 chars)
-            await edit_long_message(processing_msg, response)
-        
-        except Exception as e:
-            logger.exception("Erro em .search")
-            await event.reply("❌ Erro ao buscar")
-            try:
-                await processing_msg.delete()
-            except:
-                pass
-    
-    @client.on(events.NewMessage(pattern=r"^\.ban(?:\s|$)"))
-    async def handle_ban(event):
-        """Comando .ban para banir usuarios"""
-        sender = await event.get_sender()
-        
-        if sender.id != CONFIG["OWNER_ID"]:
-            await event.reply("Apenas o dono pode usar este comando")
-            return
-        
-        try:
-            parts = event.raw_text.split(maxsplit=1)
-            
-            if len(parts) < 2:
-                msg = ".ban [ID] - Banir usuario\n"
-                msg += ".ban list - Listar banidos"
-                await event.reply(msg)
-                return
-            
-            args = parts[1].split()
-            
-            if args[0].lower() == "list":
-                banned = await perm_manager.get_banned()
-                if not banned:
-                    await event.reply("Nenhum usuario banido")
-                else:
-                    msg = "Usuarios banidos:\n"
-                    for uid in banned:
-                        msg += f"• {uid}\n"
-                    await event.reply(msg)
-            else:
-                user_id = int(args[0])
-                if await perm_manager.ban_user(user_id):
-                    await event.reply(f"✅ Usuario {user_id} banido")
-                else:
-                    await event.reply(f"❌ Erro ao banir {user_id}")
-        
-        except (ValueError, IndexError):
-            await event.reply("Erro: Formato invalido")
-        except Exception as e:
-            logger.exception("Erro em .ban")
-            await event.reply("Erro ao processar comando")
-    
-    @client.on(events.NewMessage(pattern=r"^\.unban(?:\s|$)"))
-    async def handle_unban(event):
-        """Comando .unban para desbanir usuarios"""
-        sender = await event.get_sender()
-        
-        if sender.id != CONFIG["OWNER_ID"]:
-            await event.reply("Apenas o dono pode usar este comando")
-            return
-        
-        try:
-            parts = event.raw_text.split(maxsplit=1)
-            
-            if len(parts) < 2:
-                await event.reply(".unban [ID] - Desbanir usuario")
-                return
-            
-            user_id = int(parts[1].split()[0])
-            if await perm_manager.unban_user(user_id):
-                await event.reply(f"✅ Banimento removido de {user_id}")
-            else:
-                await event.reply(f"❌ Erro ao desbanir {user_id}")
-        
-        except (ValueError, IndexError):
-            await event.reply("Erro: Formato invalido")
-        except Exception as e:
-            logger.exception("Erro em .unban")
-            await event.reply("Erro ao processar comando")
-    
-    logger.info("Handlers registrados com sucesso")
 
 async def reconnect_loop():
-    """Loop de reconexao automatica com verificacao de autorizacao"""
+    """Loop de reconexão automática com verificação de autorização"""
     while True:
         try:
             if not client.is_connected():
-                logger.warning("Conexao perdida, tentando reconectar...")
+                logger.warning("Conexão perdida, tentando reconectar...")
                 try:
                     await client.connect()
                     
-                    # Verificar se ainda esta autorizado
+                    # Verificar se ainda está autorizado
                     if not await client.is_user_authorized():
-                        logger.error("Sessao expirou, reautenticando...")
-                        # Aqui o bot precisaria fazer login novamente
-                        # Por enquanto, apenas registra o erro
-                        logger.error("Sessao nao autorizada apos reconexao")
+                        logger.error("Sessão expirou, reautenticando...")
+                        logger.error("Sessão não autorizada após reconexão")
                     else:
                         logger.info("Reconectado com sucesso")
                 
                 except FloodWaitError as e:
-                    logger.warning(f"FloodWait durante reconexao: aguardando {e.seconds}s")
+                    logger.warning(f"FloodWait durante reconexão: aguardando {e.seconds}s")
                     await asyncio.sleep(e.seconds)
                 except AuthKeyUnregisteredError:
-                    logger.error("Sessao invalida, bot precisa fazer login novamente")
+                    logger.error("Sessão inválida, bot precisa fazer login novamente")
                 except Exception as e:
-                    logger.exception("Erro durante reconexao")
+                    logger.exception("Erro durante reconexão")
         except Exception as e:
-            logger.exception("Erro no loop de reconexao")
+            logger.exception("Erro no loop de reconexão")
         
         await asyncio.sleep(30)
 
+
 async def main():
-    """Funcao principal"""
+    """Função principal"""
     global reconnect_task
     
     logger.info("Iniciando JT IA Bot...")
     
     if not await load_configuration():
-        logger.error("Falha ao carregar configuracao")
+        logger.error("Falha ao carregar configuração")
         return
     
     if not await init_managers():
@@ -644,18 +351,18 @@ async def main():
         return
     
     if not await authenticate_client():
-        logger.error("Falha na autenticacao")
+        logger.error("Falha na autenticação")
         return
     
-    register_handlers()
+    await register_all_handlers()
     
     logger.info("[+] Bot rodando com sucesso!")
-    logger.info(f"[+] IA Padrao: {CONFIG['AI_PROVIDER']}")
-    logger.info(f"[+] IAs Disponiveis: {', '.join(ia_manager.get_available_providers())}")
+    logger.info(f"[+] IA Padrão: {CONFIG['AI_PROVIDER']}")
+    logger.info(f"[+] IAs Disponíveis: {', '.join(ia_manager.get_available_providers())}")
     logger.info(f"[+] Dono: {CONFIG['OWNER_ID']}")
-    logger.info(f"[+] Usuarios com permissao: {len(perm_manager.get_all())}")
+    logger.info(f"[+] Usuários com permissão: {len(await perm_manager.get_all())}")
     logger.info("[+] Aguardando comandos...")
-    logger.info("[+] Use .help para ver os comandos disponiveis")
+    logger.info("[+] Use .help para ver os comandos disponíveis")
     logger.info("[+] Pressione Ctrl+C para parar")
     logger.info("")
     
@@ -664,9 +371,9 @@ async def main():
     try:
         await client.run_until_disconnected()
     except KeyboardInterrupt:
-        logger.info("Bot desconectado pelo usuario")
+        logger.info("Bot desconectado pelo usuário")
     except Exception as e:
-        logger.exception("Erro durante execucao do bot")
+        logger.exception("Erro durante execução do bot")
     finally:
         logger.info("Finalizando bot...")
         
@@ -684,7 +391,7 @@ async def main():
                 elif hasattr(ia_manager, 'close_session'):
                     await ia_manager.close_session()
             except Exception as e:
-                logger.exception("Erro ao fechar sessoes de IA")
+                logger.exception("Erro ao fechar sessões de IA")
         
         if client:
             try:
@@ -713,6 +420,6 @@ async def main():
         
         logger.info("Bot finalizado")
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-
