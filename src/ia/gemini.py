@@ -16,7 +16,7 @@ class GeminiProvider(IAProvider):
     def __init__(self, api_key: str):
         super().__init__(api_key)
         self._validate_api_key()
-        self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={api_key}"
     
     async def init_session(self):
         """Inicializa sessao aiohttp"""

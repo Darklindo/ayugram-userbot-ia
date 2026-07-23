@@ -35,8 +35,8 @@ class IAManager:
         "openrouter": 60,
     }
     
-    # Ordem de fallback: Groq (principal) -> Gemini -> OpenRouter
-    FALLBACK_ORDER = ["groq", "gemini", "openrouter"]
+    # Ordem de fallback: Groq (principal) -> OpenRouter -> Gemini
+    FALLBACK_ORDER = ["groq", "openrouter", "gemini"]
     
     def __init__(self, default_provider: str, api_keys: Dict[str, str]):
         """
@@ -156,7 +156,7 @@ class IAManager:
         if response.startswith("Erro"):
             logger.warning(f"Fallback: {self.default_provider} falhou, tentando outros...")
             
-            # Ordem de fallback: Groq -> Gemini -> OpenRouter
+            # Ordem de fallback: Groq -> OpenRouter -> Gemini
             current_idx = self.FALLBACK_ORDER.index(self.default_provider) if self.default_provider in self.FALLBACK_ORDER else 0
             
             for i in range(1, len(self.FALLBACK_ORDER)):
