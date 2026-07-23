@@ -13,8 +13,7 @@ from telethon import TelegramClient, events
 from telethon.errors import (
     SessionPasswordNeededError,
     FloodWaitError,
-    PhoneNumberInvalidError,
-    InvalidSessionError
+    PhoneNumberInvalidError
 )
 
 from config import load_config, validate_config
@@ -115,11 +114,6 @@ async def authenticate_client():
         return False
     except FloodWaitError as e:
         logger.error(f"Muitas tentativas. Aguarde {e.seconds}s")
-        return False
-    except InvalidSessionError:
-        logger.error("Sessao invalida. Deletando session file...")
-        if os.path.exists("ayugram_session.session"):
-            os.remove("ayugram_session.session")
         return False
     except Exception as e:
         logger.error(f"Erro na autenticacao: {e}")
