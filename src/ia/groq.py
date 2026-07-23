@@ -15,7 +15,7 @@ class GroqProvider(IAProvider):
     def __init__(self, api_key: str):
         super().__init__(api_key)
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
-        self.model = "openai/gpt-oss-20b"  # Modelo atual e gratuito
+        self.model = "mixtral-8x7b-32768"  # Modelo padrao e gratuito do Groq
     
     async def init_session(self):
         """Inicializa sessão HTTP"""
@@ -65,10 +65,11 @@ class GroqProvider(IAProvider):
                         data = await resp.json()
                         response = data.get("choices", [{}])[0].get("message", {}).get("content", "")
                         
-                        if response:
+                        if response and response.strip():
                             logger.info("Groq: Resposta recebida com sucesso")
-                            return response
+                            return response.strip()
                         else:
+                            logger.warning("Groq: Resposta vazia recebida")
                             return "Erro: Resposta vazia do Groq"
                     
                     except Exception as e:
@@ -91,8 +92,12 @@ class GroqProvider(IAProvider):
         
         except asyncio.TimeoutError:
             logger.warning("Groq: Timeout na requisição")
-            return "Erro: Timeout ao conectar com Groq"
+            return "Erro: Timeout ao conectar com Groq (30s)"
+        
+        except aiohttp.ClientError as e:
+            logger.warning(f"Groq: Erro de conexão - {e}")
+            return f"Erro de conexão com Groq: {str(e)}"
         
         except Exception as e:
-            logger.exception("Erro ao processar com Groq")
+            logger.exception("Groq: Erro inesperado")
             return f"Erro ao processar: {str(e)}"

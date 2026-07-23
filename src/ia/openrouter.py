@@ -65,10 +65,11 @@ class OpenRouterProvider(IAProvider):
                         data = await resp.json()
                         response = data.get("choices", [{}])[0].get("message", {}).get("content", "")
                         
-                        if response:
+                        if response and response.strip():
                             logger.info("OpenRouter: Resposta recebida com sucesso")
-                            return response
+                            return response.strip()
                         else:
+                            logger.warning("OpenRouter: Resposta vazia recebida")
                             return "Erro: Resposta vazia do OpenRouter"
                     
                     except Exception as e:
