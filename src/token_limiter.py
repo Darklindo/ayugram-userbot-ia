@@ -18,7 +18,7 @@ class TokenLimiter:
         "full": 4000,      # Resposta completa
     }
     
-    def __init__(self, default_limit: str = "long"):
+    def __init__(self, default_limit: str = "full"):
         """
         Inicializa o limitador
         
