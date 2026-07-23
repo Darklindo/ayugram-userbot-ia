@@ -61,7 +61,7 @@ history_manager = HistoryManager(max_messages=5)
 token_limiter = TokenLimiter(default_limit="medium")
 stats_manager = StatsManager()
 cooldown_manager = CooldownManager(default_cooldown=5)
-security_manager = SecurityManager(max_prompt_length=2000, max_requests_per_minute=10)
+security_manager = SecurityManager(max_prompt_length=5000, max_requests_per_minute=10)
 reconnect_task = None
 
 
@@ -278,13 +278,15 @@ async def handle_ia_command(event, provider: str = None, perm_mgr=None, ia_mgr=N
             await event.reply(response)
             return
         
-        # Aplicar limite de tokens
-        response = token_limiter.truncate(response, token_limit)
+        # Aplicar limite de tokens APENAS para modo privado
+        # Para modo público, deixar edit_long_message dividir automaticamente
         
         # Se modo privado, enviar em DM
         if private_mode:
+            # Truncar resposta para modo privado
+            response_private = token_limiter.truncate(response, token_limit)
             try:
-                await sender.send_message(response)
+                await sender.send_message(response_private)
                 await processing_msg.delete()
                 await event.reply("✅ Resposta enviada em privado!")
                 logger.info(f"Resposta privada enviada para {sender.id}")
