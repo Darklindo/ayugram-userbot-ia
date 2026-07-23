@@ -23,6 +23,7 @@ from ia.manager import IAManager
 from cooldown import CooldownManager
 from history_manager import HistoryManager
 from token_limiter import TokenLimiter
+from stats_manager import StatsManager
 from utils import edit_long_message, split_message
 
 logging.basicConfig(
@@ -37,6 +38,7 @@ perm_manager = None
 ia_manager = None
 history_manager = HistoryManager(max_messages=5)
 token_limiter = TokenLimiter(default_limit="medium")
+stats_manager = StatsManager()
 cooldown_manager = CooldownManager(default_cooldown=5)
 reconnect_task = None
 
@@ -203,12 +205,17 @@ async def handle_ia_command(event, provider: str = None):
         sender_name = sender.first_name or "Usuario"
         history_manager.add_message(chat_id, sender_name, parts[1])  # Pergunta original
         history_manager.add_message(chat_id, "Bot", response[:200])  # Resposta (limitada)
+        
+        # Registrar nas estatísticas
+        stats_manager.record_query(sender.id, provider or "padrao", success=True)
     
     except FloodWaitError as e:
         logger.warning(f"FloodWait ao processar IA: aguardando {e.seconds}s")
+        stats_manager.record_query(sender.id, provider or "padrao", success=False)
         await event.reply(f"Muitas requisicoes. Aguarde {e.seconds}s")
     except Exception as e:
         logger.exception("Erro ao processar comando de IA")
+        stats_manager.record_query(sender.id, provider or "padrao", success=False)
         await event.reply("Erro ao processar pergunta")
 
 def register_handlers():
@@ -339,6 +346,8 @@ Permissoes (dono):
 
 Info:
 .status - Ver status
+.stats - Ver estatísticas gerais (dono)
+.mystats - Ver suas estatísticas
 .help - Este menu
 
 Exemplo:
@@ -363,6 +372,23 @@ Permissao: {'SIM' if perm_manager.is_allowed(sender.id) else 'NAO'}
 IA Padrao: {current_ia}
 Hora: {datetime.now().strftime('%H:%M:%S')}"""
         await event.reply(status_text)
+    
+    @client.on(events.NewMessage(pattern=r"^\.(stats|mystats)(?:\s|$)"))
+    async def handle_stats(event):
+        """Comando .stats ou .mystats"""
+        sender = await event.get_sender()
+        
+        if event.raw_text.startswith(".mystats"):
+            # Estatísticas do usuário
+            stats_text = stats_manager.format_user_stats(sender.id)
+        else:
+            # Estatísticas gerais (apenas dono)
+            if sender.id != CONFIG["OWNER_ID"]:
+                await event.reply("Apenas o dono pode ver estatísticas gerais")
+                return
+            stats_text = stats_manager.format_stats()
+        
+        await event.reply(stats_text)
     
     logger.info("Handlers registrados com sucesso")
 
