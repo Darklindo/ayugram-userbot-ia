@@ -61,7 +61,7 @@ Sempre tente fornecer respostas úteis, precisas e bem estruturadas."""
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                "max_tokens": 500,
+                "max_tokens": 2000,
                 "temperature": 0.7
             }
             
