@@ -233,12 +233,14 @@ async def handle_ia_command(event, provider: str = None):
                 await processing_msg.delete()
                 await event.reply("✅ Resposta enviada em privado!")
                 logger.info(f"Resposta privada enviada para {sender.id}")
-                # Reação de sucessoexcept Exception as e:
+            except Exception as e:
                 logger.warning(f"Erro ao enviar DM: {e}")
-                await edit_long_message(processing_msg, response)else:
+                await edit_long_message(processing_msg, response)
+        else:
             # Editar mensagem com suporte a mensagens longas
             await edit_long_message(processing_msg, response)
-            # Reação de sucesso# Adicionar pergunta e resposta ao histórico
+        
+        # Adicionar pergunta e resposta ao histórico
         sender_name = sender.first_name or "Usuario"
         history_manager.add_message(chat_id, sender_name, parts[1])  # Pergunta original
         history_manager.add_message(chat_id, "Bot", response[:200])  # Resposta (limitada)
@@ -249,10 +251,13 @@ async def handle_ia_command(event, provider: str = None):
     except FloodWaitError as e:
         logger.warning(f"FloodWait ao processar IA: aguardando {e.seconds}s")
         stats_manager.record_query(sender.id, provider or "padrao", success=False)
-        await event.reply(f"⏸️ Muitas requisicoes. Aguarde {e.seconds}s")except Exception as e:
+        await event.reply(f"⏸️ Muitas requisicoes. Aguarde {e.seconds}s")
+    except Exception as e:
         logger.exception("Erro ao processar comando de IA")
         stats_manager.record_query(sender.id, provider or "padrao", success=False)
-        await event.reply("❌ Erro ao processar pergunta")def register_handlers():
+        await event.reply("❌ Erro ao processar pergunta")
+
+def register_handlers():
     """Registra handlers de eventos"""
     
     @client.on(events.NewMessage(pattern=r"^\.ia(?:\s|$)"))
@@ -492,14 +497,10 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
             response = web_search_manager.format_search_result(result)
             
             await processing_msg.edit(response)
-            try:
-                await event.message.react("✅")
         
         except Exception as e:
             logger.exception("Erro em .search")
             await event.reply("❌ Erro ao buscar")
-            try:
-                await event.message.react("❌")
     
     @client.on(events.NewMessage(pattern=r"^\.ban(?:\s|$)"))
     async def handle_ban(event):
