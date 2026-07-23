@@ -5,6 +5,7 @@ Comandos: .search
 
 import logging
 from telethon import events
+from translator import translate_search_result
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,9 @@ async def register_search_handlers(client, perm_manager, web_search_manager, edi
             processing_msg = await event.reply("🔍 Buscando...")
             
             result = await web_search_manager.search(query)
-            response = web_search_manager.format_search_result(result)
+            # Traduzir resultado para português
+            result_translated = translate_search_result(result)
+            response = web_search_manager.format_search_result(result_translated)
             
             # Usar edit_long_message para suportar respostas longas (>4096 chars)
             await edit_long_message(processing_msg, response)

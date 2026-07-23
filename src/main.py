@@ -317,7 +317,7 @@ async def register_all_handlers():
     await register_ia_handlers(
         client, CONFIG, perm_manager, ia_manager,
         cooldown_manager, history_manager, token_limiter,
-        stats_manager, edit_long_message
+        stats_manager, security_manager, edit_long_message
     )
     
     await register_admin_handlers(client, CONFIG, perm_manager)

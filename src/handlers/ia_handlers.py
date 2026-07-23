@@ -13,25 +13,25 @@ logger = logging.getLogger(__name__)
 
 async def register_ia_handlers(client, CONFIG, perm_manager, ia_manager, 
                                cooldown_manager, history_manager, token_limiter, 
-                               stats_manager, edit_long_message):
+                               stats_manager, security_manager, edit_long_message):
     """Registra todos os handlers de IA"""
+    
+    # Importar handle_ia_command uma única vez (no escopo do closure)
+    from main import handle_ia_command
     
     @client.on(events.NewMessage(pattern=r"^\.ia(?:\s|$)"))
     async def handle_ia(event):
         """Comando .ia [pergunta] - usa IA padrão"""
-        from main import handle_ia_command
         await handle_ia_command(event, provider=None)
     
     @client.on(events.NewMessage(pattern=r"^\.iagroq(?:\s|$)"))
     async def handle_ia_groq(event):
         """Comando .iagroq [pergunta] - força Groq"""
-        from main import handle_ia_command
         await handle_ia_command(event, provider="groq")
     
     @client.on(events.NewMessage(pattern=r"^\.iarouter(?:\s|$)"))
     async def handle_ia_openrouter(event):
         """Comando .iarouter [pergunta] - força OpenRouter"""
-        from main import handle_ia_command
         await handle_ia_command(event, provider="openrouter")
     
     @client.on(events.NewMessage(pattern=r"^\.ai(?:\s|$)"))
