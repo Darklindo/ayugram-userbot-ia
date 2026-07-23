@@ -1,12 +1,13 @@
 # ============================================================================
 # JT IA TELEGRAM USERBOT - DEPENDÊNCIAS OTIMIZADAS PARA TERMUX
-# Versões recomendadas para produção em Python 3.12/3.13/3.14
+# Versão recomendada: Telethon 1.44.0 + aiohttp 3.12.15
+# Otimizado para Python 3.12/3.13/3.14
 # ============================================================================
 
-# Telegram Client Library (Última estável - corrige diversos bugs)
-telethon==1.41.2
+# Telegram Client Library (Versão mais recente - Layer 227, melhor Python 3.14)
+telethon==1.44.0
 
-# HTTP Client Assíncrono (Estável - não use 4.0.0a1 que é alpha)
+# HTTP Client Assíncrono (Estável e confiável)
 aiohttp==3.12.15
 
 # Carregamento de variáveis de ambiente
@@ -21,18 +22,21 @@ beautifulsoup4==4.13.4
 # Parsing de URLs
 urllib3==2.5.0
 
-# Processamento de dados (opcional - remova se não usar)
-pandas==2.3.1
-
-# Cálculos numéricos (opcional - remova se não usar)
-numpy==2.2.6
-
 # ============================================================================
-# NOTAS:
-# - Versões testadas e recomendadas para Termux
-# - Pandas e numpy são opcionais se usar apenas IA, Telegram e busca web
-# - Para reduzir memória no Termux, remova pandas e numpy se não usar
+# NOTAS IMPORTANTES:
 # 
+# ✅ Telethon 1.44.0:
+#    - Compatibilidade com Layer 227 do Telegram
+#    - Melhor compatibilidade com Python 3.14
+#    - Correção de timeouts com server salts
+#    - Correção de alto uso de CPU após desconexões
+#    - Melhorias de tipagem e correções gerais
+#
+# ✅ Removemos pandas e numpy:
+#    - Reduz consumo de RAM no Termux
+#    - Reduz tempo de instalação
+#    - Não são necessários para IA + busca web + visão + transcrição
+#
 # Instalação:
 # pip3 install -r requirements.txt
 # 
