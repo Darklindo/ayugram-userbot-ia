@@ -22,6 +22,8 @@ from permissions import PermissionManager
 from ia.manager import IAManager
 from personas_manager import PersonasManager
 from web_search_manager import WebSearchManager
+from audio_transcription_manager import AudioTranscriptionManager
+from image_vision_manager import ImageVisionManager
 from cooldown import CooldownManager
 from history_manager import HistoryManager
 from token_limiter import TokenLimiter
@@ -38,11 +40,13 @@ CONFIG = None
 client = None
 perm_manager = None
 ia_manager = None
+personas_manager = None
+web_search_manager = None
+audio_transcription_manager = None
+image_vision_manager = None
 history_manager = HistoryManager(max_messages=5)
 token_limiter = TokenLimiter(default_limit="medium")
 stats_manager = StatsManager()
-    personas_manager = PersonasManager()
-    web_search_manager = WebSearchManager()
 cooldown_manager = CooldownManager(default_cooldown=5)
 reconnect_task = None
 
@@ -60,7 +64,8 @@ async def load_configuration():
 
 async def init_managers():
     """Inicializa gerenciadores"""
-    global perm_manager, ia_manager
+    global perm_manager, ia_manager, personas_manager, web_search_manager
+    global audio_transcription_manager, image_vision_manager
     
     try:
         perm_manager = PermissionManager(
@@ -72,6 +77,23 @@ async def init_managers():
         ia_manager = IAManager(CONFIG["AI_PROVIDER"], CONFIG["AI_KEYS"])
         await ia_manager.init()
         logger.info(f"IAManager inicializado com {CONFIG['AI_PROVIDER']}")
+        
+        personas_manager = PersonasManager()
+        logger.info("PersonasManager inicializado")
+        
+        web_search_manager = WebSearchManager()
+        logger.info("WebSearchManager inicializado")
+        
+        audio_transcription_manager = AudioTranscriptionManager(
+            groq_api_key=CONFIG["AI_KEYS"].get("groq")
+        )
+        logger.info("AudioTranscriptionManager inicializado")
+        
+        image_vision_manager = ImageVisionManager(
+            groq_api_key=CONFIG["AI_KEYS"].get("groq"),
+            openrouter_api_key=CONFIG["AI_KEYS"].get("openrouter")
+        )
+        logger.info("ImageVisionManager inicializado")
         
         return True
     except Exception as e:
@@ -519,7 +541,10 @@ async def main():
         
         if ia_manager:
             try:
-                await ia_manager.close_all()
+                if hasattr(ia_manager, 'close_all'):
+                    await ia_manager.close_all()
+                elif hasattr(ia_manager, 'close_session'):
+                    await ia_manager.close_session()
             except Exception as e:
                 logger.exception("Erro ao fechar sessoes de IA")
         
@@ -528,6 +553,25 @@ async def main():
                 await client.disconnect()
             except Exception as e:
                 logger.exception("Erro ao desconectar cliente")
+        
+        # Fechar sessões dos novos managers
+        if web_search_manager:
+            try:
+                await web_search_manager.close_session()
+            except Exception as e:
+                logger.debug(f"Erro ao fechar WebSearchManager: {e}")
+        
+        if audio_transcription_manager:
+            try:
+                await audio_transcription_manager.close_session()
+            except Exception as e:
+                logger.debug(f"Erro ao fechar AudioTranscriptionManager: {e}")
+        
+        if image_vision_manager:
+            try:
+                await image_vision_manager.close_session()
+            except Exception as e:
+                logger.debug(f"Erro ao fechar ImageVisionManager: {e}")
         
         logger.info("Bot finalizado")
 
