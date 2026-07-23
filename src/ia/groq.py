@@ -15,7 +15,7 @@ class GroqProvider(IAProvider):
     def __init__(self, api_key: str):
         super().__init__(api_key)
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
-        self.model = "llama-3.1-70b-versatile"  # Modelo novo e gratuito do Groq
+        self.model = "llama-3.2-90b-vision-preview"  # Modelo atual do Groq (2026)
     
     async def init_session(self):
         """Inicializa sessão HTTP"""
