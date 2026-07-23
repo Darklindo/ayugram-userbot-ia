@@ -139,17 +139,17 @@ async def handle_ia_command(event, provider: str = None):
         await event.reply(f"Aguarde {remaining}s antes de fazer outra pergunta")
         return
     
-    # Extrair prompt: divide em comando e resto
-    # Mais seguro que str.replace() que remove todas as ocorrências
-    parts = event.raw_text.split(maxsplit=1)
-    if len(parts) < 2:
-        if provider:
-            await event.reply(f".ia{provider} [pergunta]")
-        else:
-            await event.reply(".ia [pergunta]")
-        return
+    # Extrair prompt dependendo do comando
+    if provider:
+        pattern = f".ia{provider}"
+    else:
+        pattern = ".ia"
     
-    prompt = parts[1]
+    prompt = event.raw_text.replace(pattern, "").strip()
+    
+    if not prompt:
+        await event.reply(f"{pattern} [pergunta]")
+        return
     
     # Definir cooldown ANTES de processar
     cooldown_manager.set_cooldown(sender.id)
@@ -193,46 +193,45 @@ def register_handlers():
         """Comando .iagemini [pergunta] - força Gemini"""
         await handle_ia_command(event, provider="gemini")
     
-    @client.on(events.NewMessage(pattern=r"^\.iagroq(?:\s|$)"))
-    async def handle_ia_groq(event):
-        """Comando .iagroq [pergunta] - força Groq"""
-        await handle_ia_command(event, provider="groq")
+    @client.on(events.NewMessage(pattern=r"^\.iadeep(?:\s|$)"))
+    async def handle_ia_deepseek(event):
+        """Comando .iadeep [pergunta] - força DeepSeek"""
+        await handle_ia_command(event, provider="deep")
     
-    @client.on(events.NewMessage(pattern=r"^\.iarouter(?:\s|$)"))
-    async def handle_ia_openrouter(event):
-        """Comando .iarouter [pergunta] - força OpenRouter"""
-        await handle_ia_command(event, provider="openrouter")
+    @client.on(events.NewMessage(pattern=r"^\.iagpt(?:\s|$)"))
+    async def handle_ia_gpt(event):
+        """Comando .iagpt [pergunta] - força OpenAI"""
+        await handle_ia_command(event, provider="gpt")
     
     @client.on(events.NewMessage(pattern=r"^\.ai(?:\s|$)"))
     async def handle_ai_config(event):
-        """Comando .ai [gemini|groq|openrouter] - define IA padrao"""
+        """Comando .ai [gemini|deepseek|openai] - define IA padrao"""
         sender = await event.get_sender()
         
         if sender.id != CONFIG["OWNER_ID"]:
             await event.reply("Apenas o dono pode usar este comando")
             return
         
-        parts = event.raw_text.split(maxsplit=1)
+        args = event.raw_text.split()
         
-        if len(parts) < 2:
+        if len(args) < 2:
             current = ia_manager.get_current_provider()
             available = ", ".join(ia_manager.get_available_providers())
             msg = f"IA padrao: {current}\n"
             msg += f"Disponiveis: {available}\n\n"
             msg += ".ai gemini\n"
-            msg += ".ai groq\n"
-            msg += ".ai openrouter"
+            msg += ".ai deepseek\n"
+            msg += ".ai openai"
             await event.reply(msg)
             return
         
-        provider = parts[1].split()[0].lower()  # Pega primeira palavra
+        provider = args[1].lower()
         success = await ia_manager.switch_provider(provider)
         
         if success:
             await event.reply(f"IA padrao mudou para: {provider}")
         else:
             await event.reply(f"Erro ao mudar para {provider}")
-            logger.warning(f"Falha ao mudar para {provider}")
     
     @client.on(events.NewMessage(pattern=r"^\.perm(?:\s|$)"))
     async def handle_perm(event):
@@ -244,19 +243,16 @@ def register_handlers():
             return
         
         try:
-            parts = event.raw_text.split(maxsplit=1)
+            args = event.raw_text.split()
             
-            if len(parts) < 2:
+            if len(args) < 2:
                 msg = ".perm [ID] - Dar permissao\n"
                 msg += ".perm remove [ID] - Remover permissao\n"
                 msg += ".perm list - Listar usuarios"
                 await event.reply(msg)
                 return
             
-            # Parse argumentos: .perm [ID|remove|list]
-            args = parts[1].split()
-            
-            if args[0].lower() == "list":
+            if args[1].lower() == "list":
                 users = perm_manager.get_all()
                 if not users:
                     await event.reply("Nenhum usuario com permissao")
@@ -266,15 +262,15 @@ def register_handlers():
                         msg += f"• {uid}\n"
                     await event.reply(msg)
             
-            elif args[0].lower() == "remove" and len(args) > 1:
-                user_id = int(args[1])
+            elif args[1].lower() == "remove" and len(args) > 2:
+                user_id = int(args[2])
                 if perm_manager.remove_user(user_id):
                     await event.reply(f"Permissao removida de {user_id}")
                 else:
                     await event.reply(f"Usuario {user_id} nao tinha permissao")
             
             else:
-                user_id = int(args[0])
+                user_id = int(args[1])
                 if perm_manager.add_user(user_id):
                     await event.reply(f"Permissao concedida para {user_id}")
                 else:
@@ -294,9 +290,9 @@ def register_handlers():
 Comandos de IA:
 .ia [pergunta] - Usa IA padrao
 .iagemini [pergunta] - Força Gemini
-.iagroq [pergunta] - Força Groq
-.iarouter [pergunta] - Força OpenRouter
-.ai [gemini|groq|openrouter] - Define IA padrao
+.iadeep [pergunta] - Força DeepSeek
+.iagpt [pergunta] - Força OpenAI
+.ai [gemini|deepseek|openai] - Define IA padrao
 
 Permissoes (dono):
 .perm [ID] - Dar permissao
@@ -309,8 +305,8 @@ Info:
 
 Exemplo:
 .ia Qual eh a capital do Brasil?
-.iagroq Como criar uma API em Python?
-.ai groq"""
+.iagemini Como criar uma API em Python?
+.ai deepseek"""
         await event.reply(help_text)
     
     @client.on(events.NewMessage(pattern=r"^\.status(?:\s|$)"))

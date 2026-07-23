@@ -42,9 +42,9 @@ def load_config():
     config["PASSWORD_2FA"] = os.getenv("PASSWORD_2FA", "").strip()
     
     # Provider padrao de IA
-    config["AI_PROVIDER"] = os.getenv("AI_PROVIDER", "deepseek").strip().lower()
-    if config["AI_PROVIDER"] not in ["gemini", "deepseek", "openai"]:
-        raise ValueError(f"AI_PROVIDER invalido: {config['AI_PROVIDER']}. Use 'gemini', 'deepseek' ou 'openai'")
+    config["AI_PROVIDER"] = os.getenv("AI_PROVIDER", "gemini").strip().lower()
+    if config["AI_PROVIDER"] not in ["gemini", "groq", "openrouter"]:
+        raise ValueError(f"AI_PROVIDER invalido: {config['AI_PROVIDER']}. Use gemini, groq ou openrouter")
     
     # Chaves de API para cada provider
     config["AI_KEYS"] = {}
@@ -53,13 +53,13 @@ def load_config():
     if gemini_key:
         config["AI_KEYS"]["gemini"] = gemini_key
     
-    deepseek_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
-    if deepseek_key:
-        config["AI_KEYS"]["deepseek"] = deepseek_key
+    groq_key = os.getenv("GROQ_API_KEY", "").strip()
+    if groq_key:
+        config["AI_KEYS"]["groq"] = groq_key
     
-    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if openai_key:
-        config["AI_KEYS"]["openai"] = openai_key
+    openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if openrouter_key:
+        config["AI_KEYS"]["openrouter"] = openrouter_key
     
     # Validar se o provider padrao tem chave
     if config["AI_PROVIDER"] not in config["AI_KEYS"]:
