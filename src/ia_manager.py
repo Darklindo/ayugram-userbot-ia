@@ -29,7 +29,7 @@ class IAManager:
             logger.info("Sessao aiohttp fechada")
     
     async def process(self, prompt: str) -> str:
-        """Processa pergunta com IA"""
+        """Processa pergunta com IA com tratamento robusto de erros"""
         if not self.api_key:
             return "Erro: API key nao configurada"
         
@@ -56,19 +56,37 @@ class IAManager:
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
                 if resp.status == 200:
-                    data = await resp.json()
-                    result = data.get("choices", [{}])[0].get("text", "Sem resposta")
-                    return result.strip()
+                    try:
+                        data = await resp.json()
+                        result = data.get("choices", [{}])[0].get("text", "Sem resposta")
+                        if not result or not isinstance(result, str):
+                            logger.warning("Resposta invalida da API")
+                            return "Erro: Resposta invalida"
+                        return result.strip()
+                    except Exception as e:
+                        logger.exception("Erro ao decodificar resposta JSON")
+                        return "Erro: Resposta invalida"
+                
+                elif resp.status == 429:
+                    logger.warning("Rate limit atingido (429)")
+                    return "Limite de requisicoes atingido. Tente mais tarde."
+                
+                elif resp.status == 500:
+                    logger.warning("Erro interno da API (500)")
+                    return "Servidor da IA indisponivel. Tente mais tarde."
+                
                 else:
                     logger.warning(f"API retornou status {resp.status}")
-                    return f"Erro {resp.status}"
+                    return f"Erro {resp.status}: Nao consegui processar"
+        
+        except asyncio.TimeoutError:
+            logger.exception("Timeout na requisicao")
+            return "Timeout: Requisicao muito lenta. Tente novamente."
         
         except aiohttp.ClientError as e:
-            logger.error(f"Erro de conexao: {e}")
-            return f"Erro de conexao: {str(e)}"
-        except asyncio.TimeoutError:
-            logger.error("Timeout na requisicao")
-            return "Timeout: Requisicao muito lenta"
+            logger.exception("Erro de conexao")
+            return "Erro de conexao com a IA"
+        
         except Exception as e:
-            logger.error(f"Erro inesperado: {e}")
-            return f"Erro: {str(e)}"
+            logger.exception("Erro inesperado no processamento")
+            return "Erro ao processar sua pergunta"

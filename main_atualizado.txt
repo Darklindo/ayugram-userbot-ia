@@ -32,7 +32,6 @@ client = None
 perm_manager = None
 ia_manager = None
 cooldown_manager = CooldownManager(default_cooldown=5)
-reconnect_task = None
 
 async def load_configuration():
     """Carrega e valida configuracao"""
@@ -43,7 +42,7 @@ async def load_configuration():
         logger.info("Configuracao carregada com sucesso")
         return True
     except Exception as e:
-        logger.exception("Erro ao carregar configuracao")
+        logger.error(f"Erro ao carregar configuracao: {e}")
         return False
 
 async def init_managers():
@@ -63,7 +62,7 @@ async def init_managers():
         
         return True
     except Exception as e:
-        logger.exception("Erro ao inicializar gerenciadores")
+        logger.error(f"Erro ao inicializar gerenciadores: {e}")
         return False
 
 async def authenticate_client():
@@ -117,7 +116,7 @@ async def authenticate_client():
         logger.error(f"Muitas tentativas. Aguarde {e.seconds}s")
         return False
     except Exception as e:
-        logger.exception("Erro na autenticacao")
+        logger.error(f"Erro na autenticacao: {e}")
         return False
 
 def register_handlers():
@@ -143,14 +142,15 @@ def register_handlers():
             await event.reply(".ia [pergunta]")
             return
         
+        cooldown_manager.set_cooldown(sender.id)
+        
         try:
             processing_msg = await event.reply("Processando...")
             response = await ia_manager.process(prompt)
             await processing_msg.edit(response)
-            cooldown_manager.set_cooldown(sender.id)
         except Exception as e:
-            logger.exception("Erro em .ia")
-            await event.reply("Erro ao processar pergunta")
+            logger.error(f"Erro em .ia: {e}")
+            await event.reply(f"Erro: {str(e)}")
     
     @client.on(events.NewMessage(pattern=r"^\.perm(?:\s|$)"))
     async def handle_perm(event):
@@ -198,8 +198,8 @@ def register_handlers():
         except (ValueError, IndexError) as e:
             await event.reply(f"Erro: {str(e)}")
         except Exception as e:
-            logger.exception("Erro em .perm")
-            await event.reply("Erro ao processar comando")
+            logger.error(f"Erro em .perm: {e}")
+            await event.reply(f"Erro: {str(e)}")
     
     @client.on(events.NewMessage(pattern=r"^\.help(?:\s|$)"))
     async def handle_help(event):
@@ -234,28 +234,20 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
     logger.info("Handlers registrados com sucesso")
 
 async def reconnect_loop():
-    """Loop de reconexao automatica com tratamento robusto"""
+    """Loop de reconexao automatica"""
     while True:
         try:
             if not client.is_connected():
-                logger.warning("Conexao perdida, tentando reconectar...")
-                try:
-                    await client.connect()
-                    logger.info("Reconectado com sucesso")
-                except FloodWaitError as e:
-                    logger.warning(f"FloodWait durante reconexao: aguardando {e.seconds}s")
-                    await asyncio.sleep(e.seconds)
-                except Exception as e:
-                    logger.exception("Erro durante reconexao")
+                logger.warning("Conexao perdida, reconectando...")
+                await client.connect()
+                logger.info("Reconectado com sucesso")
         except Exception as e:
-            logger.exception("Erro no loop de reconexao")
+            logger.error(f"Erro na reconexao: {e}")
         
         await asyncio.sleep(30)
 
 async def main():
     """Funcao principal"""
-    global reconnect_task
-    
     logger.info("Iniciando JT IA Bot...")
     
     if not await load_configuration():
@@ -276,36 +268,16 @@ async def main():
     logger.info(f"[+] Dono: {CONFIG['OWNER_ID']}")
     logger.info(f"[+] Usuarios com permissao: {len(perm_manager.get_all())}")
     
-    reconnect_task = asyncio.create_task(reconnect_loop())
-    
     try:
+        reconnect_task = asyncio.create_task(reconnect_loop())
         await client.run_until_disconnected()
     except KeyboardInterrupt:
         logger.info("Bot desconectado pelo usuario")
     except Exception as e:
-        logger.exception("Erro durante execucao do bot")
+        logger.error(f"Erro: {e}")
     finally:
-        logger.info("Finalizando bot...")
-        
-        if reconnect_task:
-            reconnect_task.cancel()
-            try:
-                await asyncio.gather(reconnect_task, return_exceptions=True)
-            except Exception as e:
-                logger.exception("Erro ao cancelar reconnect_task")
-        
-        if ia_manager:
-            try:
-                await ia_manager.close_session()
-            except Exception as e:
-                logger.exception("Erro ao fechar sessao da IA")
-        
-        if client:
-            try:
-                await client.disconnect()
-            except Exception as e:
-                logger.exception("Erro ao desconectar cliente")
-        
+        await ia_manager.close_session()
+        await client.disconnect()
         logger.info("Bot finalizado")
 
 if __name__ == "__main__":

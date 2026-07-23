@@ -41,9 +41,9 @@ class PermissionManager:
                 json.dump(self.permissions, f, indent=2)
             logger.debug(f"Permissoes salvas em {self.file_path}")
         except OSError as e:
-            logger.error(f"Erro ao salvar {self.file_path}: {e}")
+            logger.exception(f"Erro ao salvar {self.file_path}")
         except Exception as e:
-            logger.error(f"Erro inesperado ao salvar permissoes: {e}")
+            logger.exception("Erro inesperado ao salvar permissoes")
     
     def add_user(self, user_id):
         """Adiciona usuario com permissao"""
