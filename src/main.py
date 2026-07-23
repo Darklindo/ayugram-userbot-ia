@@ -161,7 +161,7 @@ async def handle_ia_command(event, provider: str = None):
     """
     sender = await event.get_sender()
     
-    if not perm_manager.is_allowed(sender.id):
+    if not await perm_manager.is_allowed(sender.id):
         await event.reply("Voce nao tem permissao")
         return
     
@@ -262,18 +262,18 @@ async def handle_ia_command(event, provider: str = None):
         await history_manager.add_message(chat_id, sender.id, "Bot", response[:200])  # Resposta (limitada)
         
         # Registrar nas estatísticas
-        stats_manager.record_query(sender.id, provider or "padrao", success=True)
+        await stats_manager.record_query(sender.id, provider or "padrao", success=True)
         
         # ✅ APLICAR COOLDOWN APÓS SUCESSO (não antes)
         await cooldown_manager.set_cooldown(sender.id)
     
     except FloodWaitError as e:
         logger.warning(f"FloodWait ao processar IA: aguardando {e.seconds}s")
-        stats_manager.record_query(sender.id, provider or "padrao", success=False)
+        await stats_manager.record_query(sender.id, provider or "padrao", success=False)
         await event.reply(f"⏸️ Muitas requisicoes. Aguarde {e.seconds}s")
     except Exception as e:
         logger.exception("Erro ao processar comando de IA")
-        stats_manager.record_query(sender.id, provider or "padrao", success=False)
+        await stats_manager.record_query(sender.id, provider or "padrao", success=False)
         await event.reply("❌ Erro ao processar pergunta")
         # NÃO aplicar cooldown em caso de erro
 
@@ -349,7 +349,7 @@ def register_handlers():
             args = parts[1].split()
             
             if args[0].lower() == "list":
-                users = perm_manager.get_all()
+                users = await perm_manager.get_all()
                 if not users:
                     await event.reply("Nenhum usuario com permissao")
                 else:
@@ -360,14 +360,14 @@ def register_handlers():
             
             elif args[0].lower() == "remove" and len(args) > 1:
                 user_id = int(args[1])
-                if perm_manager.remove_user(user_id):
+                if await perm_manager.remove_user(user_id):
                     await event.reply(f"Permissao removida de {user_id}")
                 else:
                     await event.reply(f"Usuario {user_id} nao tinha permissao")
             
             else:
                 user_id = int(args[0])
-                if perm_manager.add_user(user_id):
+                if await perm_manager.add_user(user_id):
                     await event.reply(f"Permissao concedida para {user_id}")
                 else:
                     await event.reply(f"Usuario {user_id} ja tem permissao")
@@ -454,13 +454,13 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
         
         if event.raw_text.startswith(".mystats"):
             # Estatísticas do usuário
-            stats_text = stats_manager.format_user_stats(sender.id)
+            stats_text = await stats_manager.format_user_stats(sender.id)
         else:
             # Estatísticas gerais (apenas dono)
             if sender.id != CONFIG["OWNER_ID"]:
                 await event.reply("Apenas o dono pode ver estatísticas gerais")
                 return
-            stats_text = stats_manager.format_stats()
+            stats_text = await stats_manager.format_stats()
         
         await event.reply(stats_text)
     
@@ -477,15 +477,15 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
             parts = event.raw_text.split(maxsplit=1)
             
             if len(parts) < 2:
-                await event.reply(personas_manager.list_personas())
+                await event.reply(await personas_manager.list_personas())
                 return
             
             persona_name = parts[1].split()[0].lower()
             
             if persona_name == "list":
-                await event.reply(personas_manager.list_personas())
-            elif personas_manager.set_persona(persona_name):
-                emoji = personas_manager.get_persona_emoji()
+                await event.reply(await personas_manager.list_personas())
+            elif await personas_manager.set_persona(persona_name):
+                emoji = await personas_manager.get_persona_emoji()
                 await event.reply(f"{emoji} Persona alterada para: {persona_name}")
             else:
                 await event.reply(f"Persona desconhecida: {persona_name}")
@@ -499,7 +499,7 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
         """Comando .search para buscar na web"""
         sender = await event.get_sender()
         
-        if not perm_manager.is_allowed(sender.id):
+        if not await perm_manager.is_allowed(sender.id):
             await event.reply("Voce nao tem permissao para usar IA")
             return
         
@@ -548,7 +548,7 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
             args = parts[1].split()
             
             if args[0].lower() == "list":
-                banned = perm_manager.get_banned()
+                banned = await perm_manager.get_banned()
                 if not banned:
                     await event.reply("Nenhum usuario banido")
                 else:
@@ -558,7 +558,7 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
                     await event.reply(msg)
             else:
                 user_id = int(args[0])
-                if perm_manager.ban_user(user_id):
+                if await perm_manager.ban_user(user_id):
                     await event.reply(f"✅ Usuario {user_id} banido")
                 else:
                     await event.reply(f"❌ Erro ao banir {user_id}")
@@ -586,7 +586,7 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
                 return
             
             user_id = int(parts[1].split()[0])
-            if perm_manager.unban_user(user_id):
+            if await perm_manager.unban_user(user_id):
                 await event.reply(f"✅ Banimento removido de {user_id}")
             else:
                 await event.reply(f"❌ Erro ao desbanir {user_id}")

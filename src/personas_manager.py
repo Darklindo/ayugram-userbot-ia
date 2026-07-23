@@ -1,17 +1,21 @@
 """
-Gerenciador de Personas
+Gerenciador de Personas com thread-safety
 Permite customizar a personalidade e estilo de resposta da IA
 """
 
 import logging
 import json
 import os
+import asyncio
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 class PersonasManager:
-    """Gerencia personas customizáveis para a IA"""
+    """
+    Gerencia personas customizáveis para a IA com thread-safety
+    Usa asyncio.Lock para evitar race conditions
+    """
     
     # Personas pré-definidas
     DEFAULT_PERSONAS = {
@@ -50,12 +54,13 @@ class PersonasManager:
     def __init__(self, personas_file: str = "personas.json"):
         """Inicializa o gerenciador de personas"""
         self.personas_file = personas_file
-        self.personas = self._load_personas()
+        self.personas = self._load_personas_sync()
         self.current_persona = "normal"
-        logger.info(f"PersonasManager inicializado com {len(self.personas)} personas")
+        self.lock = asyncio.Lock()
+        logger.info(f"PersonasManager inicializado com {len(self.personas)} personas e lock")
     
-    def _load_personas(self) -> Dict:
-        """Carrega personas customizadas do arquivo"""
+    def _load_personas_sync(self) -> Dict:
+        """Carrega personas customizadas do arquivo (versão síncrona para __init__)"""
         personas = self.DEFAULT_PERSONAS.copy()
         
         if os.path.exists(self.personas_file):
@@ -69,8 +74,8 @@ class PersonasManager:
         
         return personas
     
-    def _save_personas(self):
-        """Salva personas customizadas em arquivo"""
+    def _save_personas_sync(self):
+        """Salva personas customizadas em arquivo (versão síncrona)"""
         # Salva apenas as customizadas (não as padrões)
         custom = {k: v for k, v in self.personas.items() 
                   if k not in self.DEFAULT_PERSONAS}
@@ -82,83 +87,91 @@ class PersonasManager:
         except Exception as e:
             logger.exception("Erro ao salvar personas")
     
-    def get_current_persona(self) -> str:
-        """Retorna a persona atual"""
-        return self.current_persona
+    async def get_current_persona(self) -> str:
+        """Retorna a persona atual (thread-safe)"""
+        async with self.lock:
+            return self.current_persona
     
-    def set_persona(self, persona_name: str) -> bool:
-        """Define a persona atual"""
-        if persona_name not in self.personas:
-            logger.warning(f"Persona desconhecida: {persona_name}")
-            return False
-        
-        self.current_persona = persona_name
-        logger.info(f"Persona alterada para: {persona_name}")
-        return True
+    async def set_persona(self, persona_name: str) -> bool:
+        """Define a persona atual (thread-safe)"""
+        async with self.lock:
+            if persona_name not in self.personas:
+                logger.warning(f"Persona desconhecida: {persona_name}")
+                return False
+            
+            self.current_persona = persona_name
+            logger.info(f"Persona alterada para: {persona_name}")
+            return True
     
-    def get_prompt_prefix(self) -> str:
-        """Retorna o prefixo de prompt para a persona atual"""
-        persona = self.personas.get(self.current_persona, self.personas["normal"])
-        return persona.get("prompt", "")
+    async def get_prompt_prefix(self) -> str:
+        """Retorna o prefixo de prompt para a persona atual (thread-safe)"""
+        async with self.lock:
+            persona = self.personas.get(self.current_persona, self.personas["normal"])
+            return persona.get("prompt", "")
     
-    def get_persona_emoji(self) -> str:
-        """Retorna o emoji da persona atual"""
-        persona = self.personas.get(self.current_persona, self.personas["normal"])
-        return persona.get("emoji", "🤖")
+    async def get_persona_emoji(self) -> str:
+        """Retorna o emoji da persona atual (thread-safe)"""
+        async with self.lock:
+            persona = self.personas.get(self.current_persona, self.personas["normal"])
+            return persona.get("emoji", "🤖")
     
-    def add_persona(self, name: str, prompt: str, emoji: str = "🤖") -> bool:
-        """Adiciona uma persona customizada"""
-        if name in self.personas:
-            logger.warning(f"Persona já existe: {name}")
-            return False
-        
-        self.personas[name] = {
-            "name": name.capitalize(),
-            "prompt": prompt,
-            "emoji": emoji
-        }
-        
-        self._save_personas()
-        logger.info(f"Persona adicionada: {name}")
-        return True
+    async def add_persona(self, name: str, prompt: str, emoji: str = "🤖") -> bool:
+        """Adiciona uma persona customizada (thread-safe)"""
+        async with self.lock:
+            if name in self.personas:
+                logger.warning(f"Persona já existe: {name}")
+                return False
+            
+            self.personas[name] = {
+                "name": name.capitalize(),
+                "prompt": prompt,
+                "emoji": emoji
+            }
+            
+            self._save_personas_sync()
+            logger.info(f"Persona adicionada: {name}")
+            return True
     
-    def remove_persona(self, name: str) -> bool:
-        """Remove uma persona customizada"""
-        if name in self.DEFAULT_PERSONAS:
-            logger.warning(f"Não é possível remover persona padrão: {name}")
-            return False
-        
-        if name not in self.personas:
-            logger.warning(f"Persona não encontrada: {name}")
-            return False
-        
-        del self.personas[name]
-        
-        # Se era a persona atual, volta para normal
-        if self.current_persona == name:
-            self.current_persona = "normal"
-        
-        self._save_personas()
-        logger.info(f"Persona removida: {name}")
-        return True
+    async def remove_persona(self, name: str) -> bool:
+        """Remove uma persona customizada (thread-safe)"""
+        async with self.lock:
+            if name in self.DEFAULT_PERSONAS:
+                logger.warning(f"Não é possível remover persona padrão: {name}")
+                return False
+            
+            if name not in self.personas:
+                logger.warning(f"Persona não encontrada: {name}")
+                return False
+            
+            del self.personas[name]
+            
+            # Se era a persona atual, volta para normal
+            if self.current_persona == name:
+                self.current_persona = "normal"
+            
+            self._save_personas_sync()
+            logger.info(f"Persona removida: {name}")
+            return True
     
-    def list_personas(self) -> str:
-        """Retorna lista formatada de personas"""
-        lines = ["📋 PERSONAS DISPONÍVEIS:\n"]
-        
-        for name, persona in self.personas.items():
-            emoji = persona.get("emoji", "🤖")
-            marker = "✅" if name == self.current_persona else "  "
-            lines.append(f"{marker} {emoji} {name.capitalize()}")
-        
-        lines.append(f"\nAtual: {self.current_persona}")
-        return "\n".join(lines)
+    async def list_personas(self) -> str:
+        """Retorna lista formatada de personas (thread-safe)"""
+        async with self.lock:
+            lines = ["📋 PERSONAS DISPONÍVEIS:\n"]
+            
+            for name, persona in self.personas.items():
+                emoji = persona.get("emoji", "🤖")
+                marker = "✅" if name == self.current_persona else "  "
+                lines.append(f"{marker} {emoji} {name.capitalize()}")
+            
+            lines.append(f"\nAtual: {self.current_persona}")
+            return "\n".join(lines)
     
-    def get_persona_info(self, name: str) -> Optional[Dict]:
-        """Retorna informações de uma persona"""
-        return self.personas.get(name)
+    async def get_persona_info(self, name: str) -> Optional[Dict]:
+        """Retorna informações de uma persona (thread-safe)"""
+        async with self.lock:
+            return self.personas.get(name)
     
-    def format_with_persona(self, text: str) -> str:
-        """Formata texto com a persona atual"""
-        emoji = self.get_persona_emoji()
+    async def format_with_persona(self, text: str) -> str:
+        """Formata texto com a persona atual (thread-safe)"""
+        emoji = await self.get_persona_emoji()
         return f"{emoji} {text}"
