@@ -20,6 +20,8 @@ from telethon.errors import (
 from config import load_config, validate_config
 from permissions import PermissionManager
 from ia.manager import IAManager
+from personas_manager import PersonasManager
+from web_search_manager import WebSearchManager
 from cooldown import CooldownManager
 from history_manager import HistoryManager
 from token_limiter import TokenLimiter
@@ -39,6 +41,8 @@ ia_manager = None
 history_manager = HistoryManager(max_messages=5)
 token_limiter = TokenLimiter(default_limit="medium")
 stats_manager = StatsManager()
+    personas_manager = PersonasManager()
+    web_search_manager = WebSearchManager()
 cooldown_manager = CooldownManager(default_cooldown=5)
 reconnect_task = None
 
@@ -599,3 +603,63 @@ if __name__ == "__main__":
         except Exception as e:
             logger.exception("Erro em .unban")
             await event.reply("Erro ao processar comando")
+
+    @client.on(events.NewMessage(pattern=r"^\.persona(?:\s|$)"))
+    async def handle_persona(event):
+        """Comando .persona para gerenciar personas"""
+        sender = await event.get_sender()
+        
+        if sender.id != CONFIG["OWNER_ID"]:
+            await event.reply("Apenas o dono pode usar este comando")
+            return
+        
+        try:
+            parts = event.raw_text.split(maxsplit=1)
+            
+            if len(parts) < 2:
+                await event.reply(personas_manager.list_personas())
+                return
+            
+            persona_name = parts[1].split()[0].lower()
+            
+            if persona_name == "list":
+                await event.reply(personas_manager.list_personas())
+            elif personas_manager.set_persona(persona_name):
+                emoji = personas_manager.get_persona_emoji()
+                await event.reply(f"{emoji} Persona alterada para: {persona_name}")
+            else:
+                await event.reply(f"Persona desconhecida: {persona_name}")
+        
+        except Exception as e:
+            logger.exception("Erro em .persona")
+            await event.reply("Erro ao processar comando")
+    
+    @client.on(events.NewMessage(pattern=r"^\.search(?:\s|$)"))
+    async def handle_search(event):
+        """Comando .search para buscar na web"""
+        sender = await event.get_sender()
+        
+        if not perm_manager.is_allowed(sender.id):
+            await event.reply("Voce nao tem permissao para usar IA")
+            return
+        
+        try:
+            parts = event.raw_text.split(maxsplit=1)
+            
+            if len(parts) < 2:
+                await event.reply(".search [termo] - Buscar na web")
+                return
+            
+            query = parts[1]
+            processing_msg = await event.reply("🔍 Buscando...")
+            
+            result = await web_search_manager.search(query)
+            response = web_search_manager.format_search_result(result)
+            
+            await processing_msg.edit(response)
+            await event.react("✅")
+        
+        except Exception as e:
+            logger.exception("Erro em .search")
+            await event.reply("❌ Erro ao buscar")
+            await event.react("❌")
