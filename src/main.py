@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Ayugram UserBot com IA Integrada
-Sistema avançado com permissões, IA e automações
+JT IA UserBot para Telegram
+Bot com integracao de IA e sistema de permissoes
 """
 
 import os
@@ -10,15 +10,12 @@ import asyncio
 import getpass
 from datetime import datetime
 from telethon import TelegramClient, events
-from telethon.tl.types import PeerUser
 from telethon.errors import SessionPasswordNeededError
 import aiohttp
 from dotenv import load_dotenv
 
-# Carregar variáveis de ambiente do arquivo .env
 load_dotenv("config/.env")
 
-# Configurações
 API_ID = int(os.getenv("TELEGRAM_API_ID", "0"))
 API_HASH = os.getenv("TELEGRAM_API_HASH", "")
 PHONE_NUMBER = os.getenv("PHONE_NUMBER", "")
@@ -27,13 +24,10 @@ OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 MANUS_API_URL = os.getenv("MANUS_API_URL", "https://api.manus.im")
 MANUS_API_KEY = os.getenv("MANUS_API_KEY", "")
 
-# Arquivo de permissões
 PERMS_FILE = "permissions.json"
 
-# Inicializar cliente
 client = TelegramClient("ayugram_session", API_ID, API_HASH)
 
-# Sistema de permissões
 class PermissionManager:
     def __init__(self, file_path=PERMS_FILE):
         self.file_path = file_path
@@ -64,21 +58,19 @@ class PermissionManager:
         return False
     
     def is_allowed(self, user_id):
-        return user_id in self.permissions["allowed_users"]
+        return user_id in self.permissions["allowed_users"] or user_id == OWNER_ID
     
     def get_all(self):
         return self.permissions["allowed_users"]
 
 perm_manager = PermissionManager()
 
-# Sistema de IA
 class IAManager:
     def __init__(self, api_url, api_key):
         self.api_url = api_url
         self.api_key = api_key
     
     async def process(self, prompt):
-        """Processa uma mensagem com IA"""
         try:
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
@@ -103,15 +95,13 @@ class IAManager:
                         data = await resp.json()
                         return data.get("choices", [{}])[0].get("text", "Erro ao processar")
                     else:
-                        return f"Erro {resp.status}: Nao consegui processar sua mensagem"
+                        return f"Erro {resp.status}"
         except Exception as e:
             return f"Erro: {str(e)}"
 
 ia_manager = IAManager(MANUS_API_URL, MANUS_API_KEY)
 
-# Funcao de autenticacao melhorada para Termux
 async def authenticate_client():
-    """Autentica o cliente com suporte a 2FA e getpass"""
     try:
         await client.connect()
         
@@ -119,7 +109,6 @@ async def authenticate_client():
             print(f"[*] Enviando codigo para {PHONE_NUMBER}...")
             await client.send_code_request(PHONE_NUMBER)
             
-            # Usar getpass para ler o codigo (funciona melhor no Termux)
             try:
                 code = getpass.getpass("[*] Digite o codigo: ")
             except:
@@ -127,18 +116,17 @@ async def authenticate_client():
             
             try:
                 await client.sign_in(PHONE_NUMBER, code)
-                print("[+] Conectado com sucesso!")
+                print("[+] Conectado!")
             except SessionPasswordNeededError:
-                # Se tiver 2FA, usa a senha automaticamente
                 print("[*] Usando 2FA...")
                 if PASSWORD_2FA:
                     await client.sign_in(password=PASSWORD_2FA)
                     print("[+] Conectado com 2FA!")
                 else:
                     try:
-                        password = getpass.getpass("[*] Digite sua senha 2FA: ")
+                        password = getpass.getpass("[*] Senha 2FA: ")
                     except:
-                        password = input("[*] Digite sua senha 2FA: ")
+                        password = input("[*] Senha 2FA: ")
                     await client.sign_in(password=password)
                     print("[+] Conectado com 2FA!")
         
@@ -146,144 +134,112 @@ async def authenticate_client():
         print(f"[+] Conectado como: {me.first_name}")
         return True
     except Exception as e:
-        print(f"[-] Erro na autenticacao: {e}")
+        print(f"[-] Erro: {e}")
         return False
 
-# Handlers de comandos
 @client.on(events.NewMessage(pattern=r"\.perm"))
 async def handle_perm(event):
-    """Comando para gerenciar permissoes"""
-    if event.is_private:
-        sender = await event.get_sender()
-        
-        # Apenas o dono pode usar
-        if sender.id != OWNER_ID:
-            await event.reply("[-] Voce nao tem permissao para usar este comando")
+    sender = await event.get_sender()
+    
+    if sender.id != OWNER_ID:
+        await event.reply("[-] Voce nao eh o dono")
+        return
+    
+    try:
+        args = event.raw_text.split()
+        if len(args) < 2:
+            msg = ".perm [ID] - Dar permissao\n"
+            msg += ".perm list - Listar usuarios"
+            await event.reply(msg)
             return
         
-        try:
-            args = event.raw_text.split()
-            if len(args) < 2:
-                msg = "[*] Uso: `.perm (id)` ou `.perm list`\n\n"
-                msg += "Exemplos:\n"
-                msg += "`.perm 123456789` - Dar permissao\n"
-                msg += "`.perm list` - Listar permissoes"
-                await event.reply(msg)
-                return
-            
-            if args[1].lower() == "list":
-                users = perm_manager.get_all()
-                if not users:
-                    await event.reply("[*] Nenhum usuario com permissao")
-                else:
-                    msg = "[+] Usuarios com Permissao:\n"
-                    for uid in users:
-                        msg += f"• {uid}\n"
-                    await event.reply(msg)
+        if args[1].lower() == "list":
+            users = perm_manager.get_all()
+            if not users:
+                await event.reply("Nenhum usuario com permissao")
             else:
-                user_id = int(args[1])
-                if perm_manager.add_user(user_id):
-                    await event.reply(f"[+] Permissao concedida para {user_id}")
-                else:
-                    await event.reply(f"[!] Usuario {user_id} ja tem permissao")
-        except Exception as e:
-            await event.reply(f"[-] Erro: {str(e)}")
+                msg = "Usuarios com permissao:\n"
+                for uid in users:
+                    msg += f"• {uid}\n"
+                await event.reply(msg)
+        else:
+            user_id = int(args[1])
+            if perm_manager.add_user(user_id):
+                await event.reply(f"Permissao concedida para {user_id}")
+            else:
+                await event.reply(f"Usuario {user_id} ja tem permissao")
+    except Exception as e:
+        await event.reply(f"Erro: {str(e)}")
 
 @client.on(events.NewMessage(pattern=r"\.ia"))
 async def handle_ia(event):
-    """Comando para usar IA"""
     sender = await event.get_sender()
     
-    # Verificar permissao
     if not perm_manager.is_allowed(sender.id):
-        await event.reply("[-] Voce nao tem permissao para usar IA. Peça ao dono com `.perm`")
+        await event.reply("Voce nao tem permissao")
         return
     
-    # Extrair prompt
     prompt = event.raw_text.replace(".ia", "").strip()
     
     if not prompt:
-        await event.reply("[*] Uso: `.ia [sua pergunta]`\n\nExemplo: `.ia Qual eh a capital do Brasil?`")
+        await event.reply(".ia [pergunta]")
         return
     
-    # Mostrar que esta processando
-    processing_msg = await event.reply("[*] Processando sua pergunta...")
-    
-    # Processar com IA
+    processing_msg = await event.reply("Processando...")
     response = await ia_manager.process(prompt)
-    
-    # Editar mensagem com resposta
-    await processing_msg.edit(f"[+] Resposta:\n\n{response}")
+    await processing_msg.edit(response)
 
 @client.on(events.NewMessage(pattern=r"\.help"))
 async def handle_help(event):
-    """Comando de ajuda"""
-    help_text = """
-[*] Ayugram UserBot com IA
+    help_text = """JT IA Bot
 
-[+] Comandos Disponiveis:
+Comandos:
+.ia [pergunta] - Fazer pergunta
+.perm [ID] - Dar permissao (dono)
+.perm list - Listar usuarios (dono)
+.status - Ver status
 
-Permissoes:
-`.perm (id)` - Dar permissao para usar IA
-`.perm list` - Listar usuarios com permissao
-
-IA:
-`.ia [pergunta]` - Fazer uma pergunta para a IA
-
-Informacoes:
-`.help` - Mostrar este menu
-`.status` - Status do bot
-
-Exemplo de uso:
-.ia Qual eh a capital do Brasil?
-.perm 123456789
-.perm list
-
-[!] Apenas usuarios com permissao podem usar `.ia`
-"""
+Exemplo:
+.ia Quanto eh 8x90?
+.perm 123456789"""
     await event.reply(help_text)
 
 @client.on(events.NewMessage(pattern=r"\.status"))
 async def handle_status(event):
-    """Status do bot"""
     sender = await event.get_sender()
     
-    status_text = f"""
-[+] Status do Bot
-
+    status_text = f"""Status:
 Usuario: {sender.first_name}
 ID: {sender.id}
-Permissao IA: {'SIM' if perm_manager.is_allowed(sender.id) else 'NAO'}
-Horario: {datetime.now().strftime('%H:%M:%S')}
-Zona: Brazil/Sao Paulo
-"""
+Permissao: {'SIM' if perm_manager.is_allowed(sender.id) else 'NAO'}
+Hora: {datetime.now().strftime('%H:%M:%S')}"""
     await event.reply(status_text)
 
 async def main():
-    """Funcao principal"""
-    print("[*] Iniciando Ayugram UserBot com IA...")
+    print("[*] Iniciando JT IA Bot...")
     
-    # Verificar configuracoes
     if not API_ID or not API_HASH:
-        print("[-] Erro: Configure TELEGRAM_API_ID e TELEGRAM_API_HASH")
+        print("[-] Configure TELEGRAM_API_ID e TELEGRAM_API_HASH")
         return
     
     if not PHONE_NUMBER:
-        print("[-] Erro: Configure PHONE_NUMBER")
+        print("[-] Configure PHONE_NUMBER")
+        return
+    
+    if OWNER_ID == 0:
+        print("[-] Configure OWNER_ID")
         return
     
     if not MANUS_API_KEY:
-        print("[!] Aviso: MANUS_API_KEY nao configurada. IA pode nao funcionar")
+        print("[!] Aviso: MANUS_API_KEY nao configurada")
     
-    # Autenticar
     if not await authenticate_client():
         print("[-] Falha na autenticacao")
         return
     
-    print(f"[+] Bot conectado com sucesso!")
+    print("[+] Bot rodando!")
+    print(f"[+] Dono: {OWNER_ID}")
     print(f"[+] Usuarios com permissao: {len(perm_manager.get_all())}")
-    print("\n[*] Bot aguardando comandos...")
-    print("[*] Comandos: .ia, .perm, .help, .status")
     
     try:
         await client.run_until_disconnected()
