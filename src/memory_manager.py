@@ -164,9 +164,31 @@ class MemoryManager:
             logger.debug(f"Erro ao extrair info: {e}")
             return None
     
+    @staticmethod
+    def _sanitize_memory_text(text: str) -> str:
+        """
+        Remove palavras ofensivas/chatas da memória
+        Mantém a memória salva, mas sanitiza para o prompt
+        """
+        # Lista de palavras/frases a remover
+        offensive_words = [
+            r'\b(gay|cu|culo|puta|putaria|sacanagem)\b',
+            r'\be\s+(gay|cu|culo)\b',  # "e gay", "e cu"
+            r'(da\s+o\s+cu|da\s+cu)',  # "da o cu", "da cu"
+        ]
+        
+        result = text
+        for pattern in offensive_words:
+            result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+        
+        # Limpar espaços extras
+        result = re.sub(r'\s+', ' ', result).strip()
+        return result
+    
     def get_all_memory_context(self) -> str:
         """
         Retorna TODA a memória formatada para usar no prompt
+        Sanitiza palavras ofensivas
         """
         if not self.memory:
             return ""
@@ -175,7 +197,10 @@ class MemoryManager:
         for person_id, data in self.memory.items():
             infos = [i["text"] for i in data["infos"]]
             for info in infos:
-                lines.append(f"{person_id}: {info}")
+                # Sanitizar info antes de adicionar ao contexto
+                sanitized_info = self._sanitize_memory_text(info)
+                if sanitized_info:  # Só adicionar se não ficar vazio
+                    lines.append(f"{person_id}: {sanitized_info}")
         lines.append("]")
         
         return "\n".join(lines)
