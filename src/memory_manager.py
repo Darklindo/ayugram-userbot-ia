@@ -164,6 +164,22 @@ class MemoryManager:
             logger.debug(f"Erro ao extrair info: {e}")
             return None
     
+    def get_all_memory_context(self) -> str:
+        """
+        Retorna TODA a memória formatada para usar no prompt
+        """
+        if not self.memory:
+            return ""
+        
+        lines = ["[MEMÓRIA DO BOT:"]
+        for person_id, data in self.memory.items():
+            infos = [i["text"] for i in data["infos"]]
+            for info in infos:
+                lines.append(f"{person_id}: {info}")
+        lines.append("]")
+        
+        return "\n".join(lines)
+    
     def get_context_for_prompt(self, person_id: str) -> str:
         """
         Retorna contexto de memória para usar no prompt da IA

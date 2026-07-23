@@ -42,6 +42,7 @@ from handlers import (
     register_stats_handlers,
     register_help_handlers,
     register_memory_handlers,
+    register_iamemory_handlers,
 )
 
 logging.basicConfig(
@@ -354,6 +355,127 @@ async def handle_ia_command(event, provider: str = None, perm_mgr=None, ia_mgr=N
         await event.reply("❌ Erro ao processar pergunta")
 
 
+async def handle_iamemory_command(event, memory_mgr=None, ia_mgr=None, token_lim=None, 
+                                  perm_mgr=None, cooldown_mgr=None, stats_mgr=None, 
+                                  security_mgr=None, edit_long_msg=None, history_mgr=None):
+    """
+    Handler para .iamemory - usa TODA a memória no contexto
+    """
+    memory_manager = memory_mgr or globals().get('memory_manager')
+    ia_manager = ia_mgr or globals().get('ia_manager')
+    token_limiter = token_lim or globals().get('token_limiter')
+    perm_manager = perm_mgr or globals().get('perm_manager')
+    cooldown_manager = cooldown_mgr or globals().get('cooldown_manager')
+    stats_manager = stats_mgr or globals().get('stats_manager')
+    security_manager = security_mgr or globals().get('security_manager')
+    edit_long_message = edit_long_msg or globals().get('edit_long_message')
+    history_manager = history_mgr or globals().get('history_manager')
+    
+    sender = await event.get_sender()
+    
+    if not perm_manager or not await perm_manager.is_allowed(sender.id):
+        await event.reply("Você não tem permissão")
+        return
+    
+    # Verificar cooldown
+    if await cooldown_manager.is_on_cooldown(sender.id):
+        remaining = await cooldown_manager.get_remaining(sender.id)
+        await event.reply(f"Aguarde {remaining}s antes de fazer outra pergunta")
+        return
+    
+    # Extrair prompt
+    parts = event.raw_text.split(maxsplit=1)
+    if len(parts) < 2:
+        await event.reply(".iamemory [pergunta]")
+        return
+    
+    prompt = parts[1]
+    
+    # Validar
+    valid, error_msg = await security_manager.validate_prompt(prompt)
+    if not valid:
+        await event.reply(f"❌ {error_msg}")
+        return
+    
+    allowed, error_msg = await security_manager.check_rate_limit(sender.id)
+    if not allowed:
+        await event.reply(f"❌ {error_msg}")
+        return
+    
+    prompt = SecurityManager.sanitize_prompt(prompt)
+    prompt, token_limit, private_mode = token_limiter.parse_flags(prompt)
+    
+    # ADICIONAR TODA A MEMÓRIA AO PROMPT
+    all_memory = memory_manager.get_all_memory_context()
+    if all_memory:
+        prompt = f"{all_memory}\n\nPergunta: {prompt}"
+    
+    # Adicionar histórico
+    chat_id = event.chat_id
+    context = await history_manager.get_context(chat_id, sender.id)
+    if context:
+        prompt = f"Contexto anterior:\n{context}\n\n{prompt}"
+    
+    try:
+        processing_msg = await event.reply("⏳ Processando com memória...")
+        timeout = ia_manager.get_timeout(None)
+        
+        try:
+            response = await asyncio.wait_for(
+                ia_manager.process(prompt, provider=None),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            response = f"Timeout: Demorou mais de {timeout}s"
+        
+        if response is None:
+            response = "Erro: Resposta vazia da IA"
+            await event.reply(response)
+            return
+        
+        # Modo privado trunca, modo público divide
+        if private_mode:
+            response_private = token_limiter.truncate(response, token_limit)
+            try:
+                await sender.send_message(response_private)
+                await processing_msg.delete()
+                await event.reply("✅ Resposta enviada em privado!")
+            except Exception as e:
+                logger.warning(f"Erro ao enviar DM: {e}")
+                try:
+                    await edit_long_message(processing_msg, response)
+                except Exception as e2:
+                    logger.error(f"Erro ao editar mensagem: {e2}")
+                    await event.reply("❌ Erro ao enviar resposta")
+        else:
+            try:
+                await edit_long_message(processing_msg, response)
+            except Exception as e:
+                logger.error(f"Erro ao editar mensagem longa: {e}")
+                await event.reply("❌ Erro ao enviar resposta")
+        
+        # Adicionar ao histórico
+        sender_name = sender.first_name or "Usuário"
+        await history_manager.add_message(chat_id, sender.id, sender_name, parts[1])
+        await history_manager.add_message(chat_id, sender.id, "Bot", response[:200])
+        
+        # Registrar
+        await stats_manager.record_query(sender.id, "iamemory", success=True)
+        await security_manager.record_request(sender.id)
+        await cooldown_manager.set_cooldown(sender.id)
+    
+    except FloodWaitError as e:
+        user_hash = SecurityManager.hash_user_id(sender.id)
+        logger.warning(f"FloodWait do usuário {user_hash}: aguardando {e.seconds}s")
+        await stats_manager.record_query(sender.id, "iamemory", success=False)
+        await event.reply(f"⏸️ Muitas requisições. Aguarde {e.seconds}s")
+    except Exception as e:
+        user_hash = SecurityManager.hash_user_id(sender.id)
+        logger.exception(f"Erro ao processar .iamemory do usuário {user_hash}")
+        await stats_manager.record_query(sender.id, "iamemory", success=False)
+        await event.reply("❌ Erro ao processar pergunta")
+
+
 async def register_all_handlers():
     """Registra todos os handlers de eventos"""
     logger.info("Registrando handlers...")
@@ -365,6 +487,11 @@ async def register_all_handlers():
     )
     
     await register_memory_handlers(client, CONFIG, perm_manager, memory_manager)
+    await register_iamemory_handlers(
+        client, handle_iamemory_command, memory_manager, ia_manager, token_limiter,
+        perm_manager, cooldown_manager, stats_manager, security_manager, 
+        edit_long_message, history_manager
+    )
     await register_admin_handlers(client, CONFIG, perm_manager)
     await register_search_handlers(client, perm_manager, web_search_manager, edit_long_message)
     await register_persona_handlers(client, CONFIG, personas_manager)
