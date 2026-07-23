@@ -54,7 +54,19 @@ class WebSearchManager:
                     logger.warning(f"Erro na busca: status {resp.status}")
                     return "Erro ao buscar informações"
                 
-                data = await resp.json()
+                # DuckDuckGo pode retornar application/x-javascript em vez de application/json
+                try:
+                    data = await resp.json()
+                except Exception as e:
+                    # Tentar fazer parse manual do texto
+                    logger.warning(f"Erro ao fazer parse JSON: {e}, tentando text parsing")
+                    text = await resp.text()
+                    import json
+                    try:
+                        data = json.loads(text)
+                    except:
+                        logger.error(f"Falha ao fazer parse do response: {text[:200]}")
+                        return "Erro ao processar resposta da busca"
                 
                 # Extrair resultados
                 results = []
