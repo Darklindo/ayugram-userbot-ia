@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 JT IA UserBot para Telegram
-Bot robusto com multiplos provedores de IA (DeepSeek, Gemini, OpenAI)
+Bot robusto com IA, permissoes e reconexao automatica
 """
 
 import os
@@ -18,7 +18,7 @@ from telethon.errors import (
 
 from config import load_config, validate_config
 from permissions import PermissionManager
-from ia.manager import IAManager
+from ia_manager import IAManager
 from cooldown import CooldownManager
 
 logging.basicConfig(
@@ -57,8 +57,8 @@ async def init_managers():
         )
         logger.info(f"PermissionManager inicializado (dono: {CONFIG['OWNER_ID']})")
         
-        ia_manager = IAManager(CONFIG["AI_PROVIDER"], CONFIG["AI_KEYS"])
-        await ia_manager.init()
+        ia_manager = IAManager(CONFIG["AI_PROVIDER"], CONFIG["AI_API_KEY"])
+        await ia_manager.init_session()
         logger.info(f"IAManager inicializado com {CONFIG['AI_PROVIDER']}")
         
         return True
@@ -125,7 +125,7 @@ def register_handlers():
     
     @client.on(events.NewMessage(pattern=r"^\.ia(?:\s|$)"))
     async def handle_ia(event):
-        """Comando .ia [pergunta] - usa IA padrao"""
+        """Comando .ia com cooldown"""
         sender = await event.get_sender()
         
         if not perm_manager.is_allowed(sender.id):
@@ -151,123 +151,6 @@ def register_handlers():
         except Exception as e:
             logger.exception("Erro em .ia")
             await event.reply("Erro ao processar pergunta")
-    
-    @client.on(events.NewMessage(pattern=r"^\.iagemini(?:\s|$)"))
-    async def handle_ia_gemini(event):
-        """Comando .iagemini [pergunta] - força Gemini"""
-        sender = await event.get_sender()
-        
-        if not perm_manager.is_allowed(sender.id):
-            await event.reply("Voce nao tem permissao")
-            return
-        
-        if cooldown_manager.is_on_cooldown(sender.id):
-            remaining = cooldown_manager.get_remaining(sender.id)
-            await event.reply(f"Aguarde {remaining}s")
-            return
-        
-        prompt = event.raw_text.replace(".iagemini", "").strip()
-        
-        if not prompt:
-            await event.reply(".iagemini [pergunta]")
-            return
-        
-        try:
-            processing_msg = await event.reply("Processando com Gemini...")
-            response = await ia_manager.process(prompt, provider="gemini")
-            await processing_msg.edit(response)
-            cooldown_manager.set_cooldown(sender.id)
-        except Exception as e:
-            logger.exception("Erro em .iagemini")
-            await event.reply("Erro ao processar com Gemini")
-    
-    @client.on(events.NewMessage(pattern=r"^\.iadeep(?:\s|$)"))
-    async def handle_ia_deepseek(event):
-        """Comando .iadeep [pergunta] - força DeepSeek"""
-        sender = await event.get_sender()
-        
-        if not perm_manager.is_allowed(sender.id):
-            await event.reply("Voce nao tem permissao")
-            return
-        
-        if cooldown_manager.is_on_cooldown(sender.id):
-            remaining = cooldown_manager.get_remaining(sender.id)
-            await event.reply(f"Aguarde {remaining}s")
-            return
-        
-        prompt = event.raw_text.replace(".iadeep", "").strip()
-        
-        if not prompt:
-            await event.reply(".iadeep [pergunta]")
-            return
-        
-        try:
-            processing_msg = await event.reply("Processando com DeepSeek...")
-            response = await ia_manager.process(prompt, provider="deepseek")
-            await processing_msg.edit(response)
-            cooldown_manager.set_cooldown(sender.id)
-        except Exception as e:
-            logger.exception("Erro em .iadeep")
-            await event.reply("Erro ao processar com DeepSeek")
-    
-    @client.on(events.NewMessage(pattern=r"^\.iagpt(?:\s|$)"))
-    async def handle_ia_gpt(event):
-        """Comando .iagpt [pergunta] - força OpenAI"""
-        sender = await event.get_sender()
-        
-        if not perm_manager.is_allowed(sender.id):
-            await event.reply("Voce nao tem permissao")
-            return
-        
-        if cooldown_manager.is_on_cooldown(sender.id):
-            remaining = cooldown_manager.get_remaining(sender.id)
-            await event.reply(f"Aguarde {remaining}s")
-            return
-        
-        prompt = event.raw_text.replace(".iagpt", "").strip()
-        
-        if not prompt:
-            await event.reply(".iagpt [pergunta]")
-            return
-        
-        try:
-            processing_msg = await event.reply("Processando com GPT...")
-            response = await ia_manager.process(prompt, provider="openai")
-            await processing_msg.edit(response)
-            cooldown_manager.set_cooldown(sender.id)
-        except Exception as e:
-            logger.exception("Erro em .iagpt")
-            await event.reply("Erro ao processar com GPT")
-    
-    @client.on(events.NewMessage(pattern=r"^\.ai(?:\s|$)"))
-    async def handle_ai_config(event):
-        """Comando .ai [gemini|deepseek|openai] - define IA padrao"""
-        sender = await event.get_sender()
-        
-        if sender.id != CONFIG["OWNER_ID"]:
-            await event.reply("Apenas o dono pode usar este comando")
-            return
-        
-        args = event.raw_text.split()
-        
-        if len(args) < 2:
-            current = ia_manager.get_current_provider()
-            available = ", ".join(ia_manager.get_available_providers())
-            msg = f"IA padrao: {current}\n"
-            msg += f"Disponiveis: {available}\n\n"
-            msg += ".ai gemini\n"
-            msg += ".ai deepseek\n"
-            msg += ".ai openai"
-            await event.reply(msg)
-            return
-        
-        provider = args[1].lower()
-        success = await ia_manager.switch_provider(provider)
-        
-        if success:
-            await event.reply(f"IA padrao mudou para: {provider}")
-        else:
-            await event.reply(f"Erro ao mudar para {provider}")
     
     @client.on(events.NewMessage(pattern=r"^\.perm(?:\s|$)"))
     async def handle_perm(event):
@@ -323,39 +206,28 @@ def register_handlers():
         """Comando .help"""
         help_text = """JT IA Bot
 
-Comandos de IA:
-.ia [pergunta] - Usa IA padrao
-.iagemini [pergunta] - Força Gemini
-.iadeep [pergunta] - Força DeepSeek
-.iagpt [pergunta] - Força OpenAI
-.ai [gemini|deepseek|openai] - Define IA padrao
-
-Permissoes (dono):
-.perm [ID] - Dar permissao
-.perm remove [ID] - Remover permissao
-.perm list - Listar usuarios
-
-Info:
+Comandos:
+.ia [pergunta] - Fazer pergunta
+.perm [ID] - Dar permissao (dono)
+.perm remove [ID] - Remover permissao (dono)
+.perm list - Listar usuarios (dono)
 .status - Ver status
-.help - Este menu
 
 Exemplo:
-.ia Qual eh a capital do Brasil?
-.iagemini Como fazer um bot?
-.ai deepseek"""
+.ia Quanto eh 8x90?
+.perm 123456789
+.perm remove 123456789"""
         await event.reply(help_text)
     
     @client.on(events.NewMessage(pattern=r"^\.status(?:\s|$)"))
     async def handle_status(event):
         """Comando .status"""
         sender = await event.get_sender()
-        current_ia = ia_manager.get_current_provider()
         
         status_text = f"""Status:
 Usuario: {sender.first_name}
 ID: {sender.id}
 Permissao: {'SIM' if perm_manager.is_allowed(sender.id) else 'NAO'}
-IA Padrao: {current_ia}
 Hora: {datetime.now().strftime('%H:%M:%S')}"""
         await event.reply(status_text)
     
@@ -401,14 +273,14 @@ async def main():
     register_handlers()
     
     logger.info("[+] Bot rodando com sucesso!")
-    logger.info(f"[+] IA Padrao: {CONFIG['AI_PROVIDER']}")
-    logger.info(f"[+] IAs Disponiveis: {', '.join(ia_manager.get_available_providers())}")
-    logger.info(f"[+] Dono: {CONFIG['OWNER_ID']}")
-    logger.info(f"[+] Usuarios com permissao: {len(perm_manager.get_all())}")
+    logger.info(f"[+] Usando {CONFIG['AI_PROVIDER'].upper()} como IA")
     logger.info("[+] Aguardando comandos...")
     logger.info("[+] Use .help para ver os comandos disponiveis")
     logger.info("[+] Pressione Ctrl+C para parar")
     logger.info("")
+    logger.info(f"[+] Dono: {CONFIG['OWNER_ID']}")
+    logger.info(f"[+] IA: {CONFIG['AI_PROVIDER']}")
+    logger.info(f"[+] Usuarios com permissao: {len(perm_manager.get_all())}")
     
     reconnect_task = asyncio.create_task(reconnect_loop())
     
@@ -430,9 +302,9 @@ async def main():
         
         if ia_manager:
             try:
-                await ia_manager.close_all()
+                await ia_manager.close_session()
             except Exception as e:
-                logger.exception("Erro ao fechar sessoes de IA")
+                logger.exception("Erro ao fechar sessao da IA")
         
         if client:
             try:

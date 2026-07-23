@@ -41,35 +41,19 @@ def load_config():
     
     config["PASSWORD_2FA"] = os.getenv("PASSWORD_2FA", "").strip()
     
-    # Provider padrao de IA
     config["AI_PROVIDER"] = os.getenv("AI_PROVIDER", "deepseek").strip().lower()
-    if config["AI_PROVIDER"] not in ["gemini", "deepseek", "openai"]:
-        raise ValueError(f"AI_PROVIDER invalido: {config['AI_PROVIDER']}. Use 'gemini', 'deepseek' ou 'openai'")
+    if config["AI_PROVIDER"] not in ["deepseek", "gemini"]:
+        raise ValueError(f"AI_PROVIDER invalido: {config['AI_PROVIDER']}. Use 'deepseek' ou 'gemini'")
     
-    # Chaves de API para cada provider
-    config["AI_KEYS"] = {}
-    
-    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if gemini_key:
-        config["AI_KEYS"]["gemini"] = gemini_key
-    
-    deepseek_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
-    if deepseek_key:
-        config["AI_KEYS"]["deepseek"] = deepseek_key
-    
-    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if openai_key:
-        config["AI_KEYS"]["openai"] = openai_key
-    
-    # Validar se o provider padrao tem chave
-    if config["AI_PROVIDER"] not in config["AI_KEYS"]:
-        raise ValueError(f"Chave de API nao configurada para {config['AI_PROVIDER']}")
+    config["AI_API_KEY"] = os.getenv("AI_API_KEY", "").strip()
+    if not config["AI_API_KEY"]:
+        raise ValueError(f"AI_API_KEY nao configurada para {config['AI_PROVIDER']}")
     
     return config
 
 def validate_config(config):
     """Valida a configuracao carregada"""
-    required = ["API_ID", "API_HASH", "PHONE_NUMBER", "OWNER_ID", "AI_PROVIDER", "AI_KEYS"]
+    required = ["API_ID", "API_HASH", "PHONE_NUMBER", "OWNER_ID"]
     
     for key in required:
         if key not in config or not config[key]:
@@ -80,8 +64,5 @@ def validate_config(config):
     
     if config["OWNER_ID"] <= 0:
         raise ValueError("OWNER_ID deve ser um numero positivo")
-    
-    if not config["AI_KEYS"]:
-        raise ValueError("Nenhuma chave de API configurada")
     
     return True
