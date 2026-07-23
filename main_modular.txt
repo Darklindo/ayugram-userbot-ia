@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 JT IA UserBot para Telegram
-Bot profissional com multiplos provedores de IA
+Bot robusto com multiplos provedores de IA (DeepSeek, Gemini, OpenAI)
 """
 
 import os
@@ -13,15 +13,13 @@ from telethon import TelegramClient, events
 from telethon.errors import (
     SessionPasswordNeededError,
     FloodWaitError,
-    PhoneNumberInvalidError,
-    AuthKeyUnregisteredError
+    PhoneNumberInvalidError
 )
 
 from config import load_config, validate_config
 from permissions import PermissionManager
 from ia.manager import IAManager
 from cooldown import CooldownManager
-from utils import edit_long_message, split_message
 
 logging.basicConfig(
     level=logging.INFO,
@@ -122,86 +120,124 @@ async def authenticate_client():
         logger.exception("Erro na autenticacao")
         return False
 
-async def handle_ia_command(event, provider: str = None):
-    """
-    Handler unificado para todos os comandos de IA
-    Reduz duplicacao de codigo
-    """
-    sender = await event.get_sender()
-    
-    if not perm_manager.is_allowed(sender.id):
-        await event.reply("Voce nao tem permissao")
-        return
-    
-    # Aplicar cooldown ANTES de processar
-    if cooldown_manager.is_on_cooldown(sender.id):
-        remaining = cooldown_manager.get_remaining(sender.id)
-        await event.reply(f"Aguarde {remaining}s antes de fazer outra pergunta")
-        return
-    
-    # Extrair prompt dependendo do comando
-    if provider:
-        pattern = f".ia{provider}"
-    else:
-        pattern = ".ia"
-    
-    prompt = event.raw_text.replace(pattern, "").strip()
-    
-    if not prompt:
-        await event.reply(f"{pattern} [pergunta]")
-        return
-    
-    # Definir cooldown ANTES de processar
-    cooldown_manager.set_cooldown(sender.id)
-    
-    try:
-        provider_name = provider or "padrao"
-        processing_msg = await event.reply(f"Processando com {provider_name}...")
-        
-        # Obter timeout dinamico
-        timeout = ia_manager.get_timeout(provider)
-        
-        # Processar com timeout
-        try:
-            response = await asyncio.wait_for(
-                ia_manager.process(prompt, provider=provider),
-                timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            response = f"Timeout: {provider_name} demorou mais de {timeout}s"
-        
-        # Editar mensagem com suporte a mensagens longas
-        await edit_long_message(processing_msg, response)
-    
-    except FloodWaitError as e:
-        logger.warning(f"FloodWait ao processar IA: aguardando {e.seconds}s")
-        await event.reply(f"Muitas requisicoes. Aguarde {e.seconds}s")
-    except Exception as e:
-        logger.exception("Erro ao processar comando de IA")
-        await event.reply("Erro ao processar pergunta")
-
 def register_handlers():
     """Registra handlers de eventos"""
     
     @client.on(events.NewMessage(pattern=r"^\.ia(?:\s|$)"))
     async def handle_ia(event):
         """Comando .ia [pergunta] - usa IA padrao"""
-        await handle_ia_command(event, provider=None)
+        sender = await event.get_sender()
+        
+        if not perm_manager.is_allowed(sender.id):
+            await event.reply("Voce nao tem permissao")
+            return
+        
+        if cooldown_manager.is_on_cooldown(sender.id):
+            remaining = cooldown_manager.get_remaining(sender.id)
+            await event.reply(f"Aguarde {remaining}s antes de fazer outra pergunta")
+            return
+        
+        prompt = event.raw_text.replace(".ia", "").strip()
+        
+        if not prompt:
+            await event.reply(".ia [pergunta]")
+            return
+        
+        try:
+            processing_msg = await event.reply("Processando...")
+            response = await ia_manager.process(prompt)
+            await processing_msg.edit(response)
+            cooldown_manager.set_cooldown(sender.id)
+        except Exception as e:
+            logger.exception("Erro em .ia")
+            await event.reply("Erro ao processar pergunta")
     
     @client.on(events.NewMessage(pattern=r"^\.iagemini(?:\s|$)"))
     async def handle_ia_gemini(event):
         """Comando .iagemini [pergunta] - força Gemini"""
-        await handle_ia_command(event, provider="gemini")
+        sender = await event.get_sender()
+        
+        if not perm_manager.is_allowed(sender.id):
+            await event.reply("Voce nao tem permissao")
+            return
+        
+        if cooldown_manager.is_on_cooldown(sender.id):
+            remaining = cooldown_manager.get_remaining(sender.id)
+            await event.reply(f"Aguarde {remaining}s")
+            return
+        
+        prompt = event.raw_text.replace(".iagemini", "").strip()
+        
+        if not prompt:
+            await event.reply(".iagemini [pergunta]")
+            return
+        
+        try:
+            processing_msg = await event.reply("Processando com Gemini...")
+            response = await ia_manager.process(prompt, provider="gemini")
+            await processing_msg.edit(response)
+            cooldown_manager.set_cooldown(sender.id)
+        except Exception as e:
+            logger.exception("Erro em .iagemini")
+            await event.reply("Erro ao processar com Gemini")
     
     @client.on(events.NewMessage(pattern=r"^\.iadeep(?:\s|$)"))
     async def handle_ia_deepseek(event):
         """Comando .iadeep [pergunta] - força DeepSeek"""
-        await handle_ia_command(event, provider="deep")
+        sender = await event.get_sender()
+        
+        if not perm_manager.is_allowed(sender.id):
+            await event.reply("Voce nao tem permissao")
+            return
+        
+        if cooldown_manager.is_on_cooldown(sender.id):
+            remaining = cooldown_manager.get_remaining(sender.id)
+            await event.reply(f"Aguarde {remaining}s")
+            return
+        
+        prompt = event.raw_text.replace(".iadeep", "").strip()
+        
+        if not prompt:
+            await event.reply(".iadeep [pergunta]")
+            return
+        
+        try:
+            processing_msg = await event.reply("Processando com DeepSeek...")
+            response = await ia_manager.process(prompt, provider="deepseek")
+            await processing_msg.edit(response)
+            cooldown_manager.set_cooldown(sender.id)
+        except Exception as e:
+            logger.exception("Erro em .iadeep")
+            await event.reply("Erro ao processar com DeepSeek")
     
     @client.on(events.NewMessage(pattern=r"^\.iagpt(?:\s|$)"))
     async def handle_ia_gpt(event):
         """Comando .iagpt [pergunta] - força OpenAI"""
-        await handle_ia_command(event, provider="gpt")
+        sender = await event.get_sender()
+        
+        if not perm_manager.is_allowed(sender.id):
+            await event.reply("Voce nao tem permissao")
+            return
+        
+        if cooldown_manager.is_on_cooldown(sender.id):
+            remaining = cooldown_manager.get_remaining(sender.id)
+            await event.reply(f"Aguarde {remaining}s")
+            return
+        
+        prompt = event.raw_text.replace(".iagpt", "").strip()
+        
+        if not prompt:
+            await event.reply(".iagpt [pergunta]")
+            return
+        
+        try:
+            processing_msg = await event.reply("Processando com GPT...")
+            response = await ia_manager.process(prompt, provider="openai")
+            await processing_msg.edit(response)
+            cooldown_manager.set_cooldown(sender.id)
+        except Exception as e:
+            logger.exception("Erro em .iagpt")
+            await event.reply("Erro ao processar com GPT")
     
     @client.on(events.NewMessage(pattern=r"^\.ai(?:\s|$)"))
     async def handle_ai_config(event):
@@ -276,8 +312,8 @@ def register_handlers():
                 else:
                     await event.reply(f"Usuario {user_id} ja tem permissao")
         
-        except (ValueError, IndexError):
-            await event.reply("Erro: Formato invalido")
+        except (ValueError, IndexError) as e:
+            await event.reply(f"Erro: {str(e)}")
         except Exception as e:
             logger.exception("Erro em .perm")
             await event.reply("Erro ao processar comando")
@@ -305,7 +341,7 @@ Info:
 
 Exemplo:
 .ia Qual eh a capital do Brasil?
-.iagemini Como criar uma API em Python?
+.iagemini Como fazer um bot?
 .ai deepseek"""
         await event.reply(help_text)
     
@@ -326,28 +362,17 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
     logger.info("Handlers registrados com sucesso")
 
 async def reconnect_loop():
-    """Loop de reconexao automatica com verificacao de autorizacao"""
+    """Loop de reconexao automatica com tratamento robusto"""
     while True:
         try:
             if not client.is_connected():
                 logger.warning("Conexao perdida, tentando reconectar...")
                 try:
                     await client.connect()
-                    
-                    # Verificar se ainda esta autorizado
-                    if not await client.is_user_authorized():
-                        logger.error("Sessao expirou, reautenticando...")
-                        # Aqui o bot precisaria fazer login novamente
-                        # Por enquanto, apenas registra o erro
-                        logger.error("Sessao nao autorizada apos reconexao")
-                    else:
-                        logger.info("Reconectado com sucesso")
-                
+                    logger.info("Reconectado com sucesso")
                 except FloodWaitError as e:
                     logger.warning(f"FloodWait durante reconexao: aguardando {e.seconds}s")
                     await asyncio.sleep(e.seconds)
-                except AuthKeyUnregisteredError:
-                    logger.error("Sessao invalida, bot precisa fazer login novamente")
                 except Exception as e:
                     logger.exception("Erro durante reconexao")
         except Exception as e:

@@ -55,6 +55,7 @@ class GeminiProvider(IAProvider):
             
             logger.info(f"Gemini: Enviando pergunta")
             
+            # Timeout dinamico vem do manager, aqui usamos um padrao
             async with self.session.post(
                 self.api_url,
                 json=payload,

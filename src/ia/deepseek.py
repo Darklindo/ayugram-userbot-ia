@@ -53,11 +53,12 @@ class DeepSeekProvider(IAProvider):
             
             logger.info(f"DeepSeek: Enviando pergunta")
             
+            # Timeout dinamico vem do manager, aqui usamos um padrao
             async with self.session.post(
                 self.api_url,
                 json=payload,
                 headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30)
+                timeout=aiohttp.ClientTimeout(total=60)
             ) as resp:
                 logger.info(f"DeepSeek: Status {resp.status}")
                 

@@ -3,8 +3,6 @@ Gerenciador de provedores de IA
 """
 
 import logging
-import json
-import os
 from typing import Optional, Dict
 from .base import IAProvider
 from .gemini import GeminiProvider
@@ -20,19 +18,8 @@ class IAManager:
         "gemini": GeminiProvider,
         "deepseek": DeepSeekProvider,
         "openai": OpenAIProvider,
-    }
-    
-    # Aliases para nomes reais
-    ALIASES = {
-        "gpt": "openai",
-        "deep": "deepseek",
-    }
-    
-    # Timeout por provedor (segundos)
-    TIMEOUTS = {
-        "gemini": 30,
-        "deepseek": 60,
-        "openai": 45,
+        "gpt": OpenAIProvider,  # Alias para OpenAI
+        "deep": DeepSeekProvider,  # Alias para DeepSeek
     }
     
     def __init__(self, default_provider: str, api_keys: Dict[str, str]):
@@ -42,54 +29,24 @@ class IAManager:
         default_provider: 'gemini', 'deepseek' ou 'openai'
         api_keys: {'gemini': 'chave', 'deepseek': 'chave', 'openai': 'chave'}
         """
-        self.default_provider = self._resolve_alias(default_provider).lower()
+        self.default_provider = default_provider.lower()
         self.api_keys = api_keys
         self.providers: Dict[str, IAProvider] = {}
         self.current_provider = None
-        self.config_file = "ia_config.json"
         
         if self.default_provider not in self.PROVIDERS:
             raise ValueError(f"Provider desconhecido: {default_provider}")
         
         logger.info(f"IAManager: Provider padrao = {self.default_provider}")
     
-    def _resolve_alias(self, name: str) -> str:
-        """Resolve aliases para nomes reais"""
-        name = name.lower()
-        return self.ALIASES.get(name, name)
-    
-    def _save_config(self):
-        """Salva o provider atual em arquivo"""
-        try:
-            config = {"default_provider": self.default_provider}
-            with open(self.config_file, "w") as f:
-                json.dump(config, f)
-            logger.debug(f"Configuracao salva: {self.default_provider}")
-        except Exception as e:
-            logger.exception("Erro ao salvar configuracao de IA")
-    
-    def _load_config(self):
-        """Carrega o provider salvo do arquivo"""
-        try:
-            if os.path.exists(self.config_file):
-                with open(self.config_file, "r") as f:
-                    config = json.load(f)
-                    provider = config.get("default_provider")
-                    if provider and provider in self.PROVIDERS:
-                        self.default_provider = provider
-                        logger.info(f"Provider carregado do arquivo: {provider}")
-        except Exception as e:
-            logger.exception("Erro ao carregar configuracao de IA")
-    
     async def init(self):
         """Inicializa o provider padrao"""
-        self._load_config()
         if not self.current_provider:
             await self.switch_provider(self.default_provider)
     
     async def switch_provider(self, provider_name: str) -> bool:
         """Muda para um provider diferente"""
-        provider_name = self._resolve_alias(provider_name).lower()
+        provider_name = provider_name.lower()
         
         if provider_name not in self.PROVIDERS:
             logger.error(f"Provider desconhecido: {provider_name}")
@@ -108,7 +65,6 @@ class IAManager:
             
             self.current_provider = self.providers[provider_name]
             self.default_provider = provider_name
-            self._save_config()
             logger.info(f"IAManager: Mudou para {provider_name}")
             return True
         
@@ -124,7 +80,7 @@ class IAManager:
         provider: Provider especifico (opcional, usa o padrao se nao informado)
         """
         if provider:
-            provider = self._resolve_alias(provider).lower()
+            provider = provider.lower()
             if provider not in self.PROVIDERS:
                 return f"Erro: Provider desconhecido '{provider}'. Use: gemini, deepseek, openai"
             
@@ -162,17 +118,9 @@ class IAManager:
         return self.default_provider
     
     def get_available_providers(self) -> list:
-        """Retorna lista de providers disponiveis (sem duplicatas de aliases)"""
+        """Retorna lista de providers disponiveis"""
         available = []
         for name in self.PROVIDERS.keys():
             if name in self.api_keys:
                 available.append(name)
         return available
-    
-    def get_timeout(self, provider: Optional[str] = None) -> int:
-        """Retorna timeout para um provider"""
-        if not provider:
-            provider = self.default_provider
-        
-        provider = self._resolve_alias(provider).lower()
-        return self.TIMEOUTS.get(provider, 30)
