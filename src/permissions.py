@@ -18,14 +18,17 @@ class PermissionManager:
         """Carrega permissoes do arquivo com tratamento de erros"""
         if not os.path.exists(self.file_path):
             logger.info(f"Arquivo {self.file_path} nao encontrado, criando novo")
-            return {"allowed_users": []}
+            return {"allowed_users": [], "banned_users": []}
         
         try:
             with open(self.file_path, "r") as f:
                 data = json.load(f)
                 if not isinstance(data, dict) or "allowed_users" not in data:
                     logger.warning("Formato invalido em permissions.json, reiniciando")
-                    return {"allowed_users": []}
+                    return {"allowed_users": [], "banned_users": []}
+                # Garantir que banned_users existe
+                if "banned_users" not in data:
+                    data["banned_users"] = []
                 return data
         except json.JSONDecodeError as e:
             logger.error(f"Erro ao decodificar {self.file_path}: {e}")
@@ -77,10 +80,60 @@ class PermissionManager:
         """Verifica se usuario tem permissao (dono sempre tem)"""
         try:
             user_id = int(user_id)
-            return user_id == self.owner_id or user_id in self.permissions["allowed_users"]
+            # Dono sempre tem permissão
+            if user_id == self.owner_id:
+                return True
+            # Usuário banido não tem permissão
+            if self.is_banned(user_id):
+                return False
+            return user_id in self.permissions["allowed_users"]
         except (ValueError, TypeError):
             return False
     
     def get_all(self):
         """Retorna lista de usuarios com permissao"""
         return self.permissions.get("allowed_users", [])
+    
+    def ban_user(self, user_id):
+        """Bane um usuário"""
+        try:
+            user_id = int(user_id)
+            if user_id == self.owner_id:
+                logger.warning(f"Tentativa de banir o dono: {user_id}")
+                return False
+            
+            if user_id not in self.permissions.get("banned_users", []):
+                self.permissions["banned_users"].append(user_id)
+                self.save()
+                logger.info(f"Usuário banido: {user_id}")
+                return True
+            return False
+        except (ValueError, TypeError) as e:
+            logger.error(f"ID inválido: {e}")
+            return False
+    
+    def unban_user(self, user_id):
+        """Remove banimento de um usuário"""
+        try:
+            user_id = int(user_id)
+            if user_id in self.permissions.get("banned_users", []):
+                self.permissions["banned_users"].remove(user_id)
+                self.save()
+                logger.info(f"Banimento removido de {user_id}")
+                return True
+            return False
+        except (ValueError, TypeError) as e:
+            logger.error(f"ID inválido: {e}")
+            return False
+    
+    def is_banned(self, user_id):
+        """Verifica se usuário está banido"""
+        try:
+            user_id = int(user_id)
+            return user_id in self.permissions.get("banned_users", [])
+        except (ValueError, TypeError):
+            return False
+    
+    def get_banned(self):
+        """Retorna lista de usuários banidos"""
+        return self.permissions.get("banned_users", [])

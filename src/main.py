@@ -529,3 +529,73 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+    @client.on(events.NewMessage(pattern=r"^\.ban(?:\s|$)"))
+    async def handle_ban(event):
+        """Comando .ban para banir usuarios"""
+        sender = await event.get_sender()
+        
+        if sender.id != CONFIG["OWNER_ID"]:
+            await event.reply("Apenas o dono pode usar este comando")
+            return
+        
+        try:
+            parts = event.raw_text.split(maxsplit=1)
+            
+            if len(parts) < 2:
+                msg = ".ban [ID] - Banir usuario\n"
+                msg += ".ban list - Listar banidos"
+                await event.reply(msg)
+                return
+            
+            args = parts[1].split()
+            
+            if args[0].lower() == "list":
+                banned = perm_manager.get_banned()
+                if not banned:
+                    await event.reply("Nenhum usuario banido")
+                else:
+                    msg = "Usuarios banidos:\n"
+                    for uid in banned:
+                        msg += f"• {uid}\n"
+                    await event.reply(msg)
+            else:
+                user_id = int(args[0])
+                if perm_manager.ban_user(user_id):
+                    await event.reply(f"✅ Usuario {user_id} banido")
+                else:
+                    await event.reply(f"❌ Erro ao banir {user_id}")
+        
+        except (ValueError, IndexError):
+            await event.reply("Erro: Formato invalido")
+        except Exception as e:
+            logger.exception("Erro em .ban")
+            await event.reply("Erro ao processar comando")
+    
+    @client.on(events.NewMessage(pattern=r"^\.unban(?:\s|$)"))
+    async def handle_unban(event):
+        """Comando .unban para desbanir usuarios"""
+        sender = await event.get_sender()
+        
+        if sender.id != CONFIG["OWNER_ID"]:
+            await event.reply("Apenas o dono pode usar este comando")
+            return
+        
+        try:
+            parts = event.raw_text.split(maxsplit=1)
+            
+            if len(parts) < 2:
+                await event.reply(".unban [ID] - Desbanir usuario")
+                return
+            
+            user_id = int(parts[1].split()[0])
+            if perm_manager.unban_user(user_id):
+                await event.reply(f"✅ Banimento removido de {user_id}")
+            else:
+                await event.reply(f"❌ Erro ao desbanir {user_id}")
+        
+        except (ValueError, IndexError):
+            await event.reply("Erro: Formato invalido")
+        except Exception as e:
+            logger.exception("Erro em .unban")
+            await event.reply("Erro ao processar comando")
