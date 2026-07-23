@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 async def register_ia_handlers(client, CONFIG, perm_manager, ia_manager, 
                                cooldown_manager, history_manager, token_limiter, 
-                               stats_manager, security_manager, edit_long_message):
+                               stats_manager, security_manager, edit_long_message, memory_manager=None):
     """Registra todos os handlers de IA"""
     
     # Importar handle_ia_command uma única vez
@@ -33,7 +33,8 @@ async def register_ia_handlers(client, CONFIG, perm_manager, ia_manager,
             token_lim=token_limiter,
             stats_mgr=stats_manager,
             security_mgr=security_manager,
-            edit_long_msg=edit_long_message
+            edit_long_msg=edit_long_message,
+            memory_mgr=memory_manager
         )
     
     @client.on(events.NewMessage(pattern=r"^\.iagroq(?:\s|$)"))
@@ -49,7 +50,8 @@ async def register_ia_handlers(client, CONFIG, perm_manager, ia_manager,
             token_lim=token_limiter,
             stats_mgr=stats_manager,
             security_mgr=security_manager,
-            edit_long_msg=edit_long_message
+            edit_long_msg=edit_long_message,
+            memory_mgr=memory_manager
         )
     
     @client.on(events.NewMessage(pattern=r"^\.iarouter(?:\s|$)"))
@@ -65,7 +67,8 @@ async def register_ia_handlers(client, CONFIG, perm_manager, ia_manager,
             token_lim=token_limiter,
             stats_mgr=stats_manager,
             security_mgr=security_manager,
-            edit_long_msg=edit_long_message
+            edit_long_msg=edit_long_message,
+            memory_mgr=memory_manager
         )
     
     @client.on(events.NewMessage(pattern=r"^\.ai(?:\s|$)"))

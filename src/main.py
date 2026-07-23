@@ -31,6 +31,7 @@ from token_limiter import TokenLimiter
 from stats_manager import StatsManager
 from utils import edit_long_message, split_message
 from security import SecurityManager
+from memory_manager import MemoryManager
 
 # Importar handlers modulares
 from handlers import (
@@ -40,6 +41,7 @@ from handlers import (
     register_persona_handlers,
     register_stats_handlers,
     register_help_handlers,
+    register_memory_handlers,
 )
 
 logging.basicConfig(
@@ -62,6 +64,7 @@ token_limiter = TokenLimiter(default_limit="medium")
 stats_manager = StatsManager()
 cooldown_manager = CooldownManager(default_cooldown=5)
 security_manager = SecurityManager(max_prompt_length=5000, max_requests_per_minute=10)
+memory_manager = MemoryManager()
 reconnect_task = None
 
 
@@ -182,7 +185,7 @@ async def authenticate_client():
 
 async def handle_ia_command(event, provider: str = None, perm_mgr=None, ia_mgr=None, 
                             cooldown_mgr=None, history_mgr=None, token_lim=None,
-                            stats_mgr=None, security_mgr=None, edit_long_msg=None):
+                            stats_mgr=None, security_mgr=None, edit_long_msg=None, memory_mgr=None):
     """
     Handler unificado para todos os comandos de IA
     Reduz duplicação de código
@@ -196,6 +199,7 @@ async def handle_ia_command(event, provider: str = None, perm_mgr=None, ia_mgr=N
     stats_manager = stats_mgr or globals().get('stats_manager')
     security_manager = security_mgr or globals().get('security_manager')
     edit_long_message = edit_long_msg or globals().get('edit_long_message')
+    memory_manager = memory_mgr or globals().get('memory_manager')
     
     sender = await event.get_sender()
     
@@ -238,6 +242,15 @@ async def handle_ia_command(event, provider: str = None, perm_mgr=None, ia_mgr=N
     # Parse de flags de limite de tokens e modo privado
     prompt, token_limit, private_mode = token_limiter.parse_flags(prompt)
     
+    # Extrair e salvar informações sobre pessoas na memória (automático)
+    # Apenas se o dono estiver fazendo a pergunta
+    if sender.id == CONFIG.get("OWNER_ID"):
+        person_info = memory_manager.extract_person_info(prompt)
+        if person_info:
+            person_id, info = person_info
+            memory_manager.add_memory(person_id, info, source="auto")
+            logger.info(f"Memória adicionada automaticamente: {person_id} = {info}")
+    
     # Adicionar histórico de conversa para melhor contexto
     # Usar (chat_id, sender_id) para evitar mistura de contextos
     chat_id = event.chat_id
@@ -254,7 +267,15 @@ async def handle_ia_command(event, provider: str = None, perm_mgr=None, ia_mgr=N
         except Exception as e:
             logger.warning(f"Erro ao obter mensagem respondida: {e}")
     
-    # Nota: Cooldown será definido APÓS sucesso da IA
+    # Adicionar contexto de memoria sobre pessoas mencionadas
+    words = prompt.split()
+    for word in words:
+        if len(word) > 3:
+            mem_context = memory_manager.get_context_for_prompt(word)
+            if mem_context:
+                prompt += mem_context
+    
+    # Nota: Cooldown sera definido APOS sucesso da IA
     
     try:
         provider_name = provider or "padrão"
@@ -339,9 +360,10 @@ async def register_all_handlers():
     await register_ia_handlers(
         client, CONFIG, perm_manager, ia_manager,
         cooldown_manager, history_manager, token_limiter,
-        stats_manager, security_manager, edit_long_message
+        stats_manager, security_manager, edit_long_message, memory_manager
     )
     
+    await register_memory_handlers(client, CONFIG, perm_manager, memory_manager)
     await register_admin_handlers(client, CONFIG, perm_manager)
     await register_search_handlers(client, perm_manager, web_search_manager, edit_long_message)
     await register_persona_handlers(client, CONFIG, personas_manager)
