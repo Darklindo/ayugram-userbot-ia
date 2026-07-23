@@ -84,36 +84,44 @@ async def init_managers():
     global audio_transcription_manager, image_vision_manager
     
     try:
+        logger.info("[INIT] Iniciando PermissionManager...")
         perm_manager = PermissionManager(
             file_path="permissions.json",
             owner_id=CONFIG["OWNER_ID"]
         )
-        logger.info(f"PermissionManager inicializado (dono: {CONFIG['OWNER_ID']})")
+        logger.info(f"[INIT] ✅ PermissionManager inicializado (dono: {CONFIG['OWNER_ID']})")
         
+        logger.info("[INIT] Iniciando IAManager...")
         ia_manager = IAManager(CONFIG["AI_PROVIDER"], CONFIG["AI_KEYS"])
         await ia_manager.init()
-        logger.info(f"IAManager inicializado com {CONFIG['AI_PROVIDER']}")
+        logger.info(f"[INIT] ✅ IAManager inicializado com {CONFIG['AI_PROVIDER']}")
         
+        logger.info("[INIT] Iniciando PersonasManager...")
         personas_manager = PersonasManager()
-        logger.info("PersonasManager inicializado")
+        logger.info("[INIT] ✅ PersonasManager inicializado")
         
+        logger.info("[INIT] Iniciando WebSearchManager...")
         web_search_manager = WebSearchManager()
-        logger.info("WebSearchManager inicializado")
+        logger.info("[INIT] ✅ WebSearchManager inicializado")
         
+        logger.info("[INIT] Iniciando AudioTranscriptionManager...")
         audio_transcription_manager = AudioTranscriptionManager(
             groq_api_key=CONFIG["AI_KEYS"].get("groq")
         )
-        logger.info("AudioTranscriptionManager inicializado")
+        logger.info("[INIT] ✅ AudioTranscriptionManager inicializado")
         
+        logger.info("[INIT] Iniciando ImageVisionManager...")
         image_vision_manager = ImageVisionManager(
             groq_api_key=CONFIG["AI_KEYS"].get("groq"),
             openrouter_api_key=CONFIG["AI_KEYS"].get("openrouter")
         )
-        logger.info("ImageVisionManager inicializado")
+        logger.info("[INIT] ✅ ImageVisionManager inicializado")
         
+        logger.info("[INIT] ✅✅✅ TODOS OS MANAGERS INICIALIZADOS COM SUCESSO!")
         return True
     except Exception as e:
-        logger.exception("Erro ao inicializar gerenciadores")
+        logger.exception("[INIT] ❌ ERRO AO INICIALIZAR GERENCIADORES")
+        logger.error(f"[INIT] Detalhes: {str(e)}")
         return False
 
 
