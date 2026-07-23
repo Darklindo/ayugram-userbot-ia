@@ -50,7 +50,7 @@ class WebSearchManager:
             }
             
             async with self.session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status != 200:
+                if resp.status not in (200, 202):
                     logger.warning(f"Erro na busca: status {resp.status}")
                     return "Erro ao buscar informações"
                 

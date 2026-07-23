@@ -211,7 +211,8 @@ async def handle_ia_command(event, provider: str = None):
         
         # Adicionar reação de processamento
         try:
-            await event.react("⏳")
+            try:
+                await event.message.react("⏳")
         except:
             pass  # Alguns clientes não suportam reações
         
@@ -239,14 +240,16 @@ async def handle_ia_command(event, provider: str = None):
                 logger.info(f"Resposta privada enviada para {sender.id}")
                 # Reação de sucesso
                 try:
-                    await event.react("✅")
+                    try:
+                await event.message.react("✅")
                 except:
                     pass
             except Exception as e:
                 logger.warning(f"Erro ao enviar DM: {e}")
                 await edit_long_message(processing_msg, response)
                 try:
-                    await event.react("❌")
+                    try:
+                await event.message.react("❌")
                 except:
                     pass
         else:
@@ -254,7 +257,8 @@ async def handle_ia_command(event, provider: str = None):
             await edit_long_message(processing_msg, response)
             # Reação de sucesso
             try:
-                await event.react("✅")
+                try:
+                await event.message.react("✅")
             except:
                 pass
         
@@ -271,7 +275,8 @@ async def handle_ia_command(event, provider: str = None):
         stats_manager.record_query(sender.id, provider or "padrao", success=False)
         await event.reply(f"⏸️ Muitas requisicoes. Aguarde {e.seconds}s")
         try:
-            await event.react("❌")
+            try:
+                await event.message.react("❌")
         except:
             pass
     except Exception as e:
@@ -279,7 +284,8 @@ async def handle_ia_command(event, provider: str = None):
         stats_manager.record_query(sender.id, provider or "padrao", success=False)
         await event.reply("❌ Erro ao processar pergunta")
         try:
-            await event.react("❌")
+            try:
+                await event.message.react("❌")
         except:
             pass
 
@@ -523,12 +529,14 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
             response = web_search_manager.format_search_result(result)
             
             await processing_msg.edit(response)
-            await event.react("✅")
+            try:
+                await event.message.react("✅")
         
         except Exception as e:
             logger.exception("Erro em .search")
             await event.reply("❌ Erro ao buscar")
-            await event.react("❌")
+            try:
+                await event.message.react("❌")
     
     @client.on(events.NewMessage(pattern=r"^\.ban(?:\s|$)"))
     async def handle_ban(event):
