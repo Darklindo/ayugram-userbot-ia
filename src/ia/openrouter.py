@@ -13,8 +13,8 @@ class OpenRouterProvider(IAProvider):
     
     def __init__(self, api_key: str):
         super().__init__(api_key)
-        self.api_url = "https://openrouter.io/api/v1/chat/completions"
-        self.model = "deepseek/deepseek-r1:free"  # Modelo gratuito padrão
+        self.api_url = "https://openrouter.ai/api/v1/chat/completions"
+        self.model = "meta-llama/llama-3.1-8b-instruct:free"  # Modelo gratuito rápido
     
     async def init_session(self):
         """Inicializa sessão HTTP"""
