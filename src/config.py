@@ -61,6 +61,13 @@ def load_config():
     if openrouter_key:
         config["AI_KEYS"]["openrouter"] = openrouter_key
     
+    # Modelos de IA para cada provider (configuravel)
+    config["AI_MODELS"] = {
+        "groq": os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip(),
+        "openrouter": os.getenv("OPENROUTER_MODEL", "openrouter/free").strip(),
+        "gemini": os.getenv("GEMINI_MODEL", "gemini-pro").strip(),
+    }
+    
     # Validar se o provider padrao tem chave
     if config["AI_PROVIDER"] not in config["AI_KEYS"]:
         raise ValueError(f"Chave de API nao configurada para {config['AI_PROVIDER']}")
@@ -69,7 +76,7 @@ def load_config():
 
 def validate_config(config):
     """Valida a configuracao carregada"""
-    required = ["API_ID", "API_HASH", "PHONE_NUMBER", "OWNER_ID", "AI_PROVIDER", "AI_KEYS"]
+    required = ["API_ID", "API_HASH", "PHONE_NUMBER", "OWNER_ID", "AI_PROVIDER", "AI_KEYS", "AI_MODELS"]
     
     for key in required:
         if key not in config or not config[key]:

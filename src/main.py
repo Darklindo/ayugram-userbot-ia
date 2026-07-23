@@ -92,7 +92,7 @@ async def init_managers():
         logger.info(f"[INIT] ✅ PermissionManager inicializado (dono: {CONFIG['OWNER_ID']})")
         
         logger.info("[INIT] Iniciando IAManager...")
-        ia_manager = IAManager(CONFIG["AI_PROVIDER"], CONFIG["AI_KEYS"])
+        ia_manager = IAManager(CONFIG["AI_PROVIDER"], CONFIG["AI_KEYS"], CONFIG["AI_MODELS"])
         await ia_manager.init()
         logger.info(f"[INIT] ✅ IAManager inicializado com {CONFIG['AI_PROVIDER']}")
         

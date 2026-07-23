@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 class GroqProvider(IAProvider):
     """Provider para Groq API"""
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model: str = None):
         super().__init__(api_key)
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
-        self.model = "llama-3.1-8b-instant"  # Modelo ESTAVEL e FUNCIONAL do Groq
+        self.model = model or "llama-3.1-8b-instant"  # Modelo configuravel (padrao: llama-3.1-8b-instant)
     
     async def init_session(self):
         """Inicializa sessão HTTP"""

@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 class OpenRouterProvider(IAProvider):
     """Provider para OpenRouter API"""
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model: str = None):
         super().__init__(api_key)
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.model = "openrouter/free"  # Escolhe automaticamente modelo gratuito
+        self.model = model or "openrouter/free"  # Modelo configuravel (padrao: openrouter/free)
     
     async def init_session(self):
         """Inicializa sessão HTTP"""

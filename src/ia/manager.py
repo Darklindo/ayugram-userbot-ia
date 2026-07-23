@@ -36,7 +36,7 @@ class IAManager:
     # Ordem de fallback: Groq (principal) -> OpenRouter
     FALLBACK_ORDER = ["groq", "openrouter"]
     
-    def __init__(self, default_provider: str, api_keys: Dict[str, str]):
+    def __init__(self, default_provider: str, api_keys: Dict[str, str], models: Dict[str, str] = None):
         """
         Inicializa o gerenciador
         
@@ -45,6 +45,7 @@ class IAManager:
         """
         self.default_provider = self._resolve_alias(default_provider).lower()
         self.api_keys = api_keys
+        self.models = models or {}
         self.providers: Dict[str, IAProvider] = {}
         self.current_provider = None
         self.config_file = "ia_config.json"
@@ -103,9 +104,10 @@ class IAManager:
         try:
             if provider_name not in self.providers:
                 provider_class = self.PROVIDERS[provider_name]
-                self.providers[provider_name] = provider_class(self.api_keys[provider_name])
+                model = self.models.get(provider_name)
+                self.providers[provider_name] = provider_class(self.api_keys[provider_name], model=model)
                 await self.providers[provider_name].init_session()
-                logger.info(f"IAManager: {provider_name} inicializado")
+                logger.info(f"IAManager: {provider_name} inicializado com modelo {self.models.get(provider_name, 'padrao')}")
             
             self.current_provider = self.providers[provider_name]
             self.default_provider = provider_name
