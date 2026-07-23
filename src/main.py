@@ -139,17 +139,17 @@ async def handle_ia_command(event, provider: str = None):
         await event.reply(f"Aguarde {remaining}s antes de fazer outra pergunta")
         return
     
-    # Extrair prompt dependendo do comando
-    if provider:
-        pattern = f".ia{provider}"
-    else:
-        pattern = ".ia"
-    
-    prompt = event.raw_text.replace(pattern, "").strip()
-    
-    if not prompt:
-        await event.reply(f"{pattern} [pergunta]")
+    # Extrair prompt: divide em comando e resto
+    # Mais seguro que str.replace() que remove todas as ocorrências
+    parts = event.raw_text.split(maxsplit=1)
+    if len(parts) < 2:
+        if provider:
+            await event.reply(f".ia{provider} [pergunta]")
+        else:
+            await event.reply(".ia [pergunta]")
         return
+    
+    prompt = parts[1]
     
     # Definir cooldown ANTES de processar
     cooldown_manager.set_cooldown(sender.id)
@@ -212,9 +212,9 @@ def register_handlers():
             await event.reply("Apenas o dono pode usar este comando")
             return
         
-        args = event.raw_text.split()
+        parts = event.raw_text.split(maxsplit=1)
         
-        if len(args) < 2:
+        if len(parts) < 2:
             current = ia_manager.get_current_provider()
             available = ", ".join(ia_manager.get_available_providers())
             msg = f"IA padrao: {current}\n"
@@ -225,13 +225,14 @@ def register_handlers():
             await event.reply(msg)
             return
         
-        provider = args[1].lower()
+        provider = parts[1].split()[0].lower()  # Pega primeira palavra
         success = await ia_manager.switch_provider(provider)
         
         if success:
             await event.reply(f"IA padrao mudou para: {provider}")
         else:
             await event.reply(f"Erro ao mudar para {provider}")
+            logger.warning(f"Falha ao mudar para {provider}")
     
     @client.on(events.NewMessage(pattern=r"^\.perm(?:\s|$)"))
     async def handle_perm(event):
@@ -243,16 +244,19 @@ def register_handlers():
             return
         
         try:
-            args = event.raw_text.split()
+            parts = event.raw_text.split(maxsplit=1)
             
-            if len(args) < 2:
+            if len(parts) < 2:
                 msg = ".perm [ID] - Dar permissao\n"
                 msg += ".perm remove [ID] - Remover permissao\n"
                 msg += ".perm list - Listar usuarios"
                 await event.reply(msg)
                 return
             
-            if args[1].lower() == "list":
+            # Parse argumentos: .perm [ID|remove|list]
+            args = parts[1].split()
+            
+            if args[0].lower() == "list":
                 users = perm_manager.get_all()
                 if not users:
                     await event.reply("Nenhum usuario com permissao")
@@ -262,15 +266,15 @@ def register_handlers():
                         msg += f"• {uid}\n"
                     await event.reply(msg)
             
-            elif args[1].lower() == "remove" and len(args) > 2:
-                user_id = int(args[2])
+            elif args[0].lower() == "remove" and len(args) > 1:
+                user_id = int(args[1])
                 if perm_manager.remove_user(user_id):
                     await event.reply(f"Permissao removida de {user_id}")
                 else:
                     await event.reply(f"Usuario {user_id} nao tinha permissao")
             
             else:
-                user_id = int(args[1])
+                user_id = int(args[0])
                 if perm_manager.add_user(user_id):
                     await event.reply(f"Permissao concedida para {user_id}")
                 else:
