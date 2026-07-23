@@ -191,6 +191,7 @@ async def handle_ia_command(event, provider: str = None, perm_mgr=None, ia_mgr=N
     Reduz duplicação de código
     """
     # Usar parâmetros passados ou variáveis globais como fallback
+    config = globals().get('CONFIG')
     perm_manager = perm_mgr or globals().get('perm_manager')
     ia_manager = ia_mgr or globals().get('ia_manager')
     cooldown_manager = cooldown_mgr or globals().get('cooldown_manager')
@@ -244,7 +245,7 @@ async def handle_ia_command(event, provider: str = None, perm_mgr=None, ia_mgr=N
     
     # Extrair e salvar informações sobre pessoas na memória (automático)
     # Apenas se o dono estiver fazendo a pergunta
-    if sender.id == CONFIG.get("OWNER_ID"):
+    if config and sender.id == config.get("OWNER_ID"):
         person_info = memory_manager.extract_person_info(prompt)
         if person_info:
             person_id, info = person_info
