@@ -16,23 +16,57 @@ async def register_ia_handlers(client, CONFIG, perm_manager, ia_manager,
                                stats_manager, security_manager, edit_long_message):
     """Registra todos os handlers de IA"""
     
-    # Importar handle_ia_command uma única vez (no escopo do closure)
+    # Importar handle_ia_command uma única vez
     from main import handle_ia_command
     
     @client.on(events.NewMessage(pattern=r"^\.ia(?:\s|$)"))
     async def handle_ia(event):
         """Comando .ia [pergunta] - usa IA padrão"""
-        await handle_ia_command(event, provider=None)
+        # Passar todos os managers como parâmetros
+        await handle_ia_command(
+            event, 
+            provider=None,
+            perm_mgr=perm_manager,
+            ia_mgr=ia_manager,
+            cooldown_mgr=cooldown_manager,
+            history_mgr=history_manager,
+            token_lim=token_limiter,
+            stats_mgr=stats_manager,
+            security_mgr=security_manager,
+            edit_long_msg=edit_long_message
+        )
     
     @client.on(events.NewMessage(pattern=r"^\.iagroq(?:\s|$)"))
     async def handle_ia_groq(event):
         """Comando .iagroq [pergunta] - força Groq"""
-        await handle_ia_command(event, provider="groq")
+        await handle_ia_command(
+            event, 
+            provider="groq",
+            perm_mgr=perm_manager,
+            ia_mgr=ia_manager,
+            cooldown_mgr=cooldown_manager,
+            history_mgr=history_manager,
+            token_lim=token_limiter,
+            stats_mgr=stats_manager,
+            security_mgr=security_manager,
+            edit_long_msg=edit_long_message
+        )
     
     @client.on(events.NewMessage(pattern=r"^\.iarouter(?:\s|$)"))
     async def handle_ia_openrouter(event):
         """Comando .iarouter [pergunta] - força OpenRouter"""
-        await handle_ia_command(event, provider="openrouter")
+        await handle_ia_command(
+            event, 
+            provider="openrouter",
+            perm_mgr=perm_manager,
+            ia_mgr=ia_manager,
+            cooldown_mgr=cooldown_manager,
+            history_mgr=history_manager,
+            token_lim=token_limiter,
+            stats_mgr=stats_manager,
+            security_mgr=security_manager,
+            edit_long_msg=edit_long_message
+        )
     
     @client.on(events.NewMessage(pattern=r"^\.ai(?:\s|$)"))
     async def handle_ai_config(event):

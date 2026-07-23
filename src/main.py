@@ -180,14 +180,26 @@ async def authenticate_client():
         return False
 
 
-async def handle_ia_command(event, provider: str = None):
+async def handle_ia_command(event, provider: str = None, perm_mgr=None, ia_mgr=None, 
+                            cooldown_mgr=None, history_mgr=None, token_lim=None,
+                            stats_mgr=None, security_mgr=None, edit_long_msg=None):
     """
     Handler unificado para todos os comandos de IA
     Reduz duplicação de código
     """
+    # Usar parâmetros passados ou variáveis globais como fallback
+    perm_manager = perm_mgr or globals().get('perm_manager')
+    ia_manager = ia_mgr or globals().get('ia_manager')
+    cooldown_manager = cooldown_mgr or globals().get('cooldown_manager')
+    history_manager = history_mgr or globals().get('history_manager')
+    token_limiter = token_lim or globals().get('token_limiter')
+    stats_manager = stats_mgr or globals().get('stats_manager')
+    security_manager = security_mgr or globals().get('security_manager')
+    edit_long_message = edit_long_msg or globals().get('edit_long_message')
+    
     sender = await event.get_sender()
     
-    if not await perm_manager.is_allowed(sender.id):
+    if not perm_manager or not await perm_manager.is_allowed(sender.id):
         await event.reply("Você não tem permissão")
         return
     
