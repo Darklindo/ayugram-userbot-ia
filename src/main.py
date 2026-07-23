@@ -119,89 +119,92 @@ async def authenticate_client():
         logger.error(f"Erro na autenticacao: {e}")
         return False
 
-@client.on(events.NewMessage(pattern=r"^\.ia(?:\s|$)"))
-async def handle_ia(event):
-    """Comando .ia com cooldown"""
-    sender = await event.get_sender()
+def register_handlers():
+    """Registra handlers de eventos"""
     
-    if not perm_manager.is_allowed(sender.id):
-        await event.reply("Voce nao tem permissao")
-        return
-    
-    if cooldown_manager.is_on_cooldown(sender.id):
-        remaining = cooldown_manager.get_remaining(sender.id)
-        await event.reply(f"Aguarde {remaining}s antes de fazer outra pergunta")
-        return
-    
-    prompt = event.raw_text.replace(".ia", "").strip()
-    
-    if not prompt:
-        await event.reply(".ia [pergunta]")
-        return
-    
-    cooldown_manager.set_cooldown(sender.id)
-    
-    try:
-        processing_msg = await event.reply("Processando...")
-        response = await ia_manager.process(prompt)
-        await processing_msg.edit(response)
-    except Exception as e:
-        logger.error(f"Erro em .ia: {e}")
-        await event.reply(f"Erro: {str(e)}")
-
-@client.on(events.NewMessage(pattern=r"^\.perm(?:\s|$)"))
-async def handle_perm(event):
-    """Comando .perm para gerenciar permissoes"""
-    sender = await event.get_sender()
-    
-    if sender.id != CONFIG["OWNER_ID"]:
-        await event.reply("Apenas o dono pode usar este comando")
-        return
-    
-    try:
-        args = event.raw_text.split()
+    @client.on(events.NewMessage(pattern=r"^\.ia(?:\s|$)"))
+    async def handle_ia(event):
+        """Comando .ia com cooldown"""
+        sender = await event.get_sender()
         
-        if len(args) < 2:
-            msg = ".perm [ID] - Dar permissao\n"
-            msg += ".perm remove [ID] - Remover permissao\n"
-            msg += ".perm list - Listar usuarios"
-            await event.reply(msg)
+        if not perm_manager.is_allowed(sender.id):
+            await event.reply("Voce nao tem permissao")
             return
         
-        if args[1].lower() == "list":
-            users = perm_manager.get_all()
-            if not users:
-                await event.reply("Nenhum usuario com permissao")
-            else:
-                msg = "Usuarios com permissao:\n"
-                for uid in users:
-                    msg += f"• {uid}\n"
-                await event.reply(msg)
+        if cooldown_manager.is_on_cooldown(sender.id):
+            remaining = cooldown_manager.get_remaining(sender.id)
+            await event.reply(f"Aguarde {remaining}s antes de fazer outra pergunta")
+            return
         
-        elif args[1].lower() == "remove" and len(args) > 2:
-            user_id = int(args[2])
-            if perm_manager.remove_user(user_id):
-                await event.reply(f"Permissao removida de {user_id}")
-            else:
-                await event.reply(f"Usuario {user_id} nao tinha permissao")
+        prompt = event.raw_text.replace(".ia", "").strip()
         
-        else:
-            user_id = int(args[1])
-            if perm_manager.add_user(user_id):
-                await event.reply(f"Permissao concedida para {user_id}")
-            else:
-                await event.reply(f"Usuario {user_id} ja tem permissao")
+        if not prompt:
+            await event.reply(".ia [pergunta]")
+            return
+        
+        cooldown_manager.set_cooldown(sender.id)
+        
+        try:
+            processing_msg = await event.reply("Processando...")
+            response = await ia_manager.process(prompt)
+            await processing_msg.edit(response)
+        except Exception as e:
+            logger.error(f"Erro em .ia: {e}")
+            await event.reply(f"Erro: {str(e)}")
     
-    except (ValueError, IndexError) as e:
-        await event.reply(f"Erro: {str(e)}")
-    except Exception as e:
-        logger.error(f"Erro em .perm: {e}")
-        await event.reply(f"Erro: {str(e)}")
-
-@client.on(events.NewMessage(pattern=r"^\.help(?:\s|$)"))
-async def handle_help(event):
-    """Comando .help"""
-    help_text = """JT IA Bot
+    @client.on(events.NewMessage(pattern=r"^\.perm(?:\s|$)"))
+    async def handle_perm(event):
+        """Comando .perm para gerenciar permissoes"""
+        sender = await event.get_sender()
+        
+        if sender.id != CONFIG["OWNER_ID"]:
+            await event.reply("Apenas o dono pode usar este comando")
+            return
+        
+        try:
+            args = event.raw_text.split()
+            
+            if len(args) < 2:
+                msg = ".perm [ID] - Dar permissao\n"
+                msg += ".perm remove [ID] - Remover permissao\n"
+                msg += ".perm list - Listar usuarios"
+                await event.reply(msg)
+                return
+            
+            if args[1].lower() == "list":
+                users = perm_manager.get_all()
+                if not users:
+                    await event.reply("Nenhum usuario com permissao")
+                else:
+                    msg = "Usuarios com permissao:\n"
+                    for uid in users:
+                        msg += f"• {uid}\n"
+                    await event.reply(msg)
+            
+            elif args[1].lower() == "remove" and len(args) > 2:
+                user_id = int(args[2])
+                if perm_manager.remove_user(user_id):
+                    await event.reply(f"Permissao removida de {user_id}")
+                else:
+                    await event.reply(f"Usuario {user_id} nao tinha permissao")
+            
+            else:
+                user_id = int(args[1])
+                if perm_manager.add_user(user_id):
+                    await event.reply(f"Permissao concedida para {user_id}")
+                else:
+                    await event.reply(f"Usuario {user_id} ja tem permissao")
+        
+        except (ValueError, IndexError) as e:
+            await event.reply(f"Erro: {str(e)}")
+        except Exception as e:
+            logger.error(f"Erro em .perm: {e}")
+            await event.reply(f"Erro: {str(e)}")
+    
+    @client.on(events.NewMessage(pattern=r"^\.help(?:\s|$)"))
+    async def handle_help(event):
+        """Comando .help"""
+        help_text = """JT IA Bot
 
 Comandos:
 .ia [pergunta] - Fazer pergunta
@@ -214,19 +217,21 @@ Exemplo:
 .ia Quanto eh 8x90?
 .perm 123456789
 .perm remove 123456789"""
-    await event.reply(help_text)
-
-@client.on(events.NewMessage(pattern=r"^\.status(?:\s|$)"))
-async def handle_status(event):
-    """Comando .status"""
-    sender = await event.get_sender()
+        await event.reply(help_text)
     
-    status_text = f"""Status:
+    @client.on(events.NewMessage(pattern=r"^\.status(?:\s|$)"))
+    async def handle_status(event):
+        """Comando .status"""
+        sender = await event.get_sender()
+        
+        status_text = f"""Status:
 Usuario: {sender.first_name}
 ID: {sender.id}
 Permissao: {'SIM' if perm_manager.is_allowed(sender.id) else 'NAO'}
 Hora: {datetime.now().strftime('%H:%M:%S')}"""
-    await event.reply(status_text)
+        await event.reply(status_text)
+    
+    logger.info("Handlers registrados com sucesso")
 
 async def reconnect_loop():
     """Loop de reconexao automatica"""
@@ -256,6 +261,8 @@ async def main():
     if not await authenticate_client():
         logger.error("Falha na autenticacao")
         return
+    
+    register_handlers()
     
     logger.info("[+] Bot rodando!")
     logger.info(f"[+] Dono: {CONFIG['OWNER_ID']}")
