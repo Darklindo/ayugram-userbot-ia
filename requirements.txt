@@ -2,11 +2,11 @@
 # JT IA TELEGRAM USERBOT - DEPENDÊNCIAS COM VERSÕES MAIS RECENTES (2026)
 # ============================================================================
 
-# Telegram Client Library (VERSÃO MAIS RECENTE)
-telethon==1.9.0
+# Telegram Client Library (VERSÃO MAIS RECENTE - 1.44.0)
+telethon==1.44.0
 
 # HTTP Client Assíncrono (VERSÃO MAIS RECENTE)
-aiohttp==4.0.0a1
+aiohttp==3.11.0
 
 # Carregamento de variáveis de ambiente
 python-dotenv==1.1.0
