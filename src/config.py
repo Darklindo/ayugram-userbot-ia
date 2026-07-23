@@ -18,15 +18,15 @@ def load_config():
     config = {}
     
     try:
-        config["API_ID"] = int(os.getenv("TELEGRAM_API_ID", "0"))
+        config["API_ID"] = int(os.getenv("API_ID", "0"))
         if config["API_ID"] == 0:
-            raise ValueError("TELEGRAM_API_ID nao configurado")
+            raise ValueError("API_ID nao configurado")
     except ValueError as e:
-        raise ValueError(f"TELEGRAM_API_ID invalido: {e}")
+        raise ValueError(f"API_ID invalido: {e}")
     
-    config["API_HASH"] = os.getenv("TELEGRAM_API_HASH", "").strip()
+    config["API_HASH"] = os.getenv("API_HASH", "").strip()
     if not config["API_HASH"]:
-        raise ValueError("TELEGRAM_API_HASH nao configurado")
+        raise ValueError("API_HASH nao configurado")
     
     config["PHONE_NUMBER"] = os.getenv("PHONE_NUMBER", "").strip()
     if not config["PHONE_NUMBER"]:
