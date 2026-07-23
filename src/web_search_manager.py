@@ -54,19 +54,13 @@ class WebSearchManager:
                     logger.warning(f"Erro na busca: status {resp.status}")
                     return "Erro ao buscar informações"
                 
-                # DuckDuckGo pode retornar application/x-javascript em vez de application/json
+                # DuckDuckGo retorna application/x-javascript, nao application/json
+                # Use content_type=None para ignorar a validacao do MIME Type
                 try:
-                    data = await resp.json()
+                    data = await resp.json(content_type=None)
                 except Exception as e:
-                    # Tentar fazer parse manual do texto
-                    logger.warning(f"Erro ao fazer parse JSON: {e}, tentando text parsing")
-                    text = await resp.text()
-                    import json
-                    try:
-                        data = json.loads(text)
-                    except:
-                        logger.error(f"Falha ao fazer parse do response: {text[:200]}")
-                        return "Erro ao processar resposta da busca"
+                    logger.exception(f"Erro ao fazer parse JSON: {e}")
+                    return "Erro ao processar resposta da busca"
                 
                 # Extrair resultados
                 results = []
