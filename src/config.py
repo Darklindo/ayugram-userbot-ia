@@ -40,8 +40,14 @@ def load_config():
         raise ValueError(f"OWNER_ID invalido: {e}")
     
     config["PASSWORD_2FA"] = os.getenv("PASSWORD_2FA", "").strip()
-    config["MANUS_API_URL"] = os.getenv("MANUS_API_URL", "https://api.manus.im").strip()
-    config["MANUS_API_KEY"] = os.getenv("MANUS_API_KEY", "").strip()
+    
+    config["AI_PROVIDER"] = os.getenv("AI_PROVIDER", "deepseek").strip().lower()
+    if config["AI_PROVIDER"] not in ["deepseek", "gemini"]:
+        raise ValueError(f"AI_PROVIDER invalido: {config['AI_PROVIDER']}. Use 'deepseek' ou 'gemini'")
+    
+    config["AI_API_KEY"] = os.getenv("AI_API_KEY", "").strip()
+    if not config["AI_API_KEY"]:
+        raise ValueError(f"AI_API_KEY nao configurada para {config['AI_PROVIDER']}")
     
     return config
 

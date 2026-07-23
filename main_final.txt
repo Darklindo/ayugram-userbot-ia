@@ -57,9 +57,9 @@ async def init_managers():
         )
         logger.info(f"PermissionManager inicializado (dono: {CONFIG['OWNER_ID']})")
         
-        ia_manager = IAManager(CONFIG["AI_PROVIDER"], CONFIG["AI_API_KEY"])
+        ia_manager = IAManager(CONFIG["MANUS_API_URL"], CONFIG["MANUS_API_KEY"])
         await ia_manager.init_session()
-        logger.info(f"IAManager inicializado com {CONFIG['AI_PROVIDER']}")
+        logger.info("IAManager inicializado")
         
         return True
     except Exception as e:
@@ -272,14 +272,8 @@ async def main():
     
     register_handlers()
     
-    logger.info("[+] Bot rodando com sucesso!")
-    logger.info(f"[+] Usando {CONFIG['AI_PROVIDER'].upper()} como IA")
-    logger.info("[+] Aguardando comandos...")
-    logger.info("[+] Use .help para ver os comandos disponiveis")
-    logger.info("[+] Pressione Ctrl+C para parar")
-    logger.info("")
+    logger.info("[+] Bot rodando!")
     logger.info(f"[+] Dono: {CONFIG['OWNER_ID']}")
-    logger.info(f"[+] IA: {CONFIG['AI_PROVIDER']}")
     logger.info(f"[+] Usuarios com permissao: {len(perm_manager.get_all())}")
     
     reconnect_task = asyncio.create_task(reconnect_loop())
