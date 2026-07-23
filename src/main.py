@@ -165,9 +165,9 @@ async def handle_ia_command(event, provider: str = None):
         await event.reply("Voce nao tem permissao")
         return
     
-    # Aplicar cooldown ANTES de processar
-    if cooldown_manager.is_on_cooldown(sender.id):
-        remaining = cooldown_manager.get_remaining(sender.id)
+    # Verificar cooldown ANTES de processar
+    if await cooldown_manager.is_on_cooldown(sender.id):
+        remaining = await cooldown_manager.get_remaining(sender.id)
         await event.reply(f"Aguarde {remaining}s antes de fazer outra pergunta")
         return
     
@@ -187,8 +187,9 @@ async def handle_ia_command(event, provider: str = None):
     prompt, token_limit, private_mode = token_limiter.parse_flags(prompt)
     
     # Adicionar histórico de conversa para melhor contexto
+    # Usar (chat_id, sender_id) para evitar mistura de contextos
     chat_id = event.chat_id
-    context = history_manager.get_context(chat_id)
+    context = await history_manager.get_context(chat_id, sender.id)
     if context:
         prompt = f"Contexto anterior:\n{context}\n\nNova pergunta: {prompt}"
     
@@ -202,8 +203,7 @@ async def handle_ia_command(event, provider: str = None):
         except Exception as e:
             logger.warning(f"Erro ao obter mensagem respondida: {e}")
     
-    # Definir cooldown ANTES de processar
-    cooldown_manager.set_cooldown(sender.id)
+    # Nota: Cooldown será definido APÓS sucesso da IA (veja no final do bloco try)
     
     try:
         provider_name = provider or "padrao"
@@ -223,30 +223,49 @@ async def handle_ia_command(event, provider: str = None):
         except asyncio.TimeoutError:
             response = f"Timeout: {provider_name} demorou mais de {timeout}s"
         
+        # Validar resposta antes de processar
+        if response is None:
+            response = "Erro: Resposta vazia da IA"
+            await event.reply(response)
+            return
+        
         # Aplicar limite de tokens
         response = token_limiter.truncate(response, token_limit)
         
         # Se modo privado, enviar em DM
         if private_mode:
             try:
+                # Validar se usuário aceitou DM
                 await sender.send_message(response)
                 await processing_msg.delete()
                 await event.reply("✅ Resposta enviada em privado!")
                 logger.info(f"Resposta privada enviada para {sender.id}")
             except Exception as e:
                 logger.warning(f"Erro ao enviar DM: {e}")
-                await edit_long_message(processing_msg, response)
+                # Fallback: editar mensagem no grupo
+                try:
+                    await edit_long_message(processing_msg, response)
+                except Exception as e2:
+                    logger.error(f"Erro ao editar mensagem: {e2}")
+                    await event.reply("❌ Erro ao enviar resposta")
         else:
             # Editar mensagem com suporte a mensagens longas
-            await edit_long_message(processing_msg, response)
+            try:
+                await edit_long_message(processing_msg, response)
+            except Exception as e:
+                logger.error(f"Erro ao editar mensagem longa: {e}")
+                await event.reply("❌ Erro ao enviar resposta")
         
-        # Adicionar pergunta e resposta ao histórico
+        # Adicionar pergunta e resposta ao histórico com (chat_id, sender_id)
         sender_name = sender.first_name or "Usuario"
-        history_manager.add_message(chat_id, sender_name, parts[1])  # Pergunta original
-        history_manager.add_message(chat_id, "Bot", response[:200])  # Resposta (limitada)
+        await history_manager.add_message(chat_id, sender.id, sender_name, parts[1])  # Pergunta original
+        await history_manager.add_message(chat_id, sender.id, "Bot", response[:200])  # Resposta (limitada)
         
         # Registrar nas estatísticas
         stats_manager.record_query(sender.id, provider or "padrao", success=True)
+        
+        # ✅ APLICAR COOLDOWN APÓS SUCESSO (não antes)
+        await cooldown_manager.set_cooldown(sender.id)
     
     except FloodWaitError as e:
         logger.warning(f"FloodWait ao processar IA: aguardando {e.seconds}s")
@@ -256,6 +275,7 @@ async def handle_ia_command(event, provider: str = None):
         logger.exception("Erro ao processar comando de IA")
         stats_manager.record_query(sender.id, provider or "padrao", success=False)
         await event.reply("❌ Erro ao processar pergunta")
+        # NÃO aplicar cooldown em caso de erro
 
 def register_handlers():
     """Registra handlers de eventos"""
@@ -496,11 +516,16 @@ Hora: {datetime.now().strftime('%H:%M:%S')}"""
             result = await web_search_manager.search(query)
             response = web_search_manager.format_search_result(result)
             
-            await processing_msg.edit(response)
+            # Usar edit_long_message para suportar respostas longas (>4096 chars)
+            await edit_long_message(processing_msg, response)
         
         except Exception as e:
             logger.exception("Erro em .search")
             await event.reply("❌ Erro ao buscar")
+            try:
+                await processing_msg.delete()
+            except:
+                pass
     
     @client.on(events.NewMessage(pattern=r"^\.ban(?:\s|$)"))
     async def handle_ban(event):
