@@ -1,3 +1,50 @@
-telethon==1.36.0
-aiohttp==3.10.1
+# ============================================================================
+# JT IA TELEGRAM USERBOT - DEPENDÊNCIAS ATUALIZADAS
+# ============================================================================
+
+# Telegram Client Library (versão mais recente)
+telethon==1.40.0
+
+# HTTP Client Assíncrono
+aiohttp==3.11.0
+
+# Carregamento de variáveis de ambiente
 python-dotenv==1.1.0
+
+# JSON com suporte a tipos complexos
+superjson==0.6.2
+
+# Requisições HTTP (fallback)
+requests==2.32.3
+
+# Processamento de dados
+pandas==2.2.3
+
+# Cálculos numéricos
+numpy==1.26.4
+
+# Parsing de HTML/XML
+beautifulsoup4==4.12.3
+
+# Parsing de URLs
+urllib3==2.2.3
+
+# Logging estruturado
+python-json-logger==2.0.8
+
+# Rate limiting
+ratelimit==2.2.1
+
+# Cache
+cachetools==5.5.0
+
+# Async utilities
+asyncio-contextmanager==1.0.0
+
+# Type hints
+typing-extensions==4.12.2
+
+# ============================================================================
+# Instalação:
+# pip3 install -r requirements.txt
+# ============================================================================
