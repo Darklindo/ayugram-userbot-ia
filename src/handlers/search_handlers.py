@@ -34,7 +34,7 @@ async def register_search_handlers(client, perm_manager, web_search_manager, edi
             
             result = await web_search_manager.search(query)
             # Traduzir resultado para português
-            result_translated = translate_search_result(result)
+            result_translated = await translate_search_result(result)
             response = web_search_manager.format_search_result(result_translated)
             
             # Usar edit_long_message para suportar respostas longas (>4096 chars)
