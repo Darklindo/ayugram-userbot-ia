@@ -21,6 +21,7 @@ from config import load_config, validate_config
 from permissions import PermissionManager
 from ia.manager import IAManager
 from cooldown import CooldownManager
+from history_manager import HistoryManager
 from utils import edit_long_message, split_message
 
 logging.basicConfig(
@@ -33,6 +34,7 @@ CONFIG = None
 client = None
 perm_manager = None
 ia_manager = None
+history_manager = HistoryManager(max_messages=5)
 cooldown_manager = CooldownManager(default_cooldown=5)
 reconnect_task = None
 
@@ -151,6 +153,12 @@ async def handle_ia_command(event, provider: str = None):
     
     prompt = parts[1]
     
+    # Adicionar histórico de conversa para melhor contexto
+    chat_id = event.chat_id
+    context = history_manager.get_context(chat_id)
+    if context:
+        prompt = f"Contexto anterior:\n{context}\n\nNova pergunta: {prompt}"
+    
     # Se for resposta a mensagem, usar o texto da mensagem original como contexto
     if event.reply_to_msg_id:
         try:
@@ -182,6 +190,11 @@ async def handle_ia_command(event, provider: str = None):
         
         # Editar mensagem com suporte a mensagens longas
         await edit_long_message(processing_msg, response)
+        
+        # Adicionar pergunta e resposta ao histórico
+        sender_name = sender.first_name or "Usuario"
+        history_manager.add_message(chat_id, sender_name, parts[1])  # Pergunta original
+        history_manager.add_message(chat_id, "Bot", response[:200])  # Resposta (limitada)
     
     except FloodWaitError as e:
         logger.warning(f"FloodWait ao processar IA: aguardando {e.seconds}s")
