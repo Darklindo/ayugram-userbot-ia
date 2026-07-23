@@ -22,6 +22,7 @@ from permissions import PermissionManager
 from ia.manager import IAManager
 from cooldown import CooldownManager
 from history_manager import HistoryManager
+from token_limiter import TokenLimiter
 from utils import edit_long_message, split_message
 
 logging.basicConfig(
@@ -35,6 +36,7 @@ client = None
 perm_manager = None
 ia_manager = None
 history_manager = HistoryManager(max_messages=5)
+token_limiter = TokenLimiter(default_limit="medium")
 cooldown_manager = CooldownManager(default_cooldown=5)
 reconnect_task = None
 
@@ -153,6 +155,9 @@ async def handle_ia_command(event, provider: str = None):
     
     prompt = parts[1]
     
+    # Parse de flags de limite de tokens
+    prompt, token_limit = token_limiter.parse_flags(prompt)
+    
     # Adicionar histórico de conversa para melhor contexto
     chat_id = event.chat_id
     context = history_manager.get_context(chat_id)
@@ -187,6 +192,9 @@ async def handle_ia_command(event, provider: str = None):
             )
         except asyncio.TimeoutError:
             response = f"Timeout: {provider_name} demorou mais de {timeout}s"
+        
+        # Aplicar limite de tokens
+        response = token_limiter.truncate(response, token_limit)
         
         # Editar mensagem com suporte a mensagens longas
         await edit_long_message(processing_msg, response)
@@ -317,6 +325,12 @@ Comandos de IA:
 
 RESPOSTA A MENSAGENS:
 Responda uma mensagem com .ia [pergunta] para usar a IA nela
+
+LIMITES DE TOKENS:
+.ia -short [pergunta]   (150 chars)
+.ia -medium [pergunta]  (500 chars - padrao)
+.ia -long [pergunta]    (2000 chars)
+.ia -full [pergunta]    (4000 chars)
 
 Permissoes (dono):
 .perm [ID] - Dar permissao
