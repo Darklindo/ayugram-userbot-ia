@@ -209,12 +209,7 @@ async def handle_ia_command(event, provider: str = None):
         provider_name = provider or "padrao"
         processing_msg = await event.reply(f"⏳ Processando com {provider_name}...")
         
-        # Adicionar reação de processamento
-        try:
-            try:
-                await event.message.react("⏳")
-        except:
-            pass  # Alguns clientes não suportam reações
+        # Adicionar reação de processamento# Alguns clientes não suportam reações
         
         # Obter timeout dinamico
         timeout = ia_manager.get_timeout(provider)
@@ -238,31 +233,12 @@ async def handle_ia_command(event, provider: str = None):
                 await processing_msg.delete()
                 await event.reply("✅ Resposta enviada em privado!")
                 logger.info(f"Resposta privada enviada para {sender.id}")
-                # Reação de sucesso
-                try:
-                    try:
-                await event.message.react("✅")
-                except:
-                    pass
-            except Exception as e:
+                # Reação de sucessoexcept Exception as e:
                 logger.warning(f"Erro ao enviar DM: {e}")
-                await edit_long_message(processing_msg, response)
-                try:
-                    try:
-                await event.message.react("❌")
-                except:
-                    pass
-        else:
+                await edit_long_message(processing_msg, response)else:
             # Editar mensagem com suporte a mensagens longas
             await edit_long_message(processing_msg, response)
-            # Reação de sucesso
-            try:
-                try:
-                await event.message.react("✅")
-            except:
-                pass
-        
-        # Adicionar pergunta e resposta ao histórico
+            # Reação de sucesso# Adicionar pergunta e resposta ao histórico
         sender_name = sender.first_name or "Usuario"
         history_manager.add_message(chat_id, sender_name, parts[1])  # Pergunta original
         history_manager.add_message(chat_id, "Bot", response[:200])  # Resposta (limitada)
@@ -273,23 +249,10 @@ async def handle_ia_command(event, provider: str = None):
     except FloodWaitError as e:
         logger.warning(f"FloodWait ao processar IA: aguardando {e.seconds}s")
         stats_manager.record_query(sender.id, provider or "padrao", success=False)
-        await event.reply(f"⏸️ Muitas requisicoes. Aguarde {e.seconds}s")
-        try:
-            try:
-                await event.message.react("❌")
-        except:
-            pass
-    except Exception as e:
+        await event.reply(f"⏸️ Muitas requisicoes. Aguarde {e.seconds}s")except Exception as e:
         logger.exception("Erro ao processar comando de IA")
         stats_manager.record_query(sender.id, provider or "padrao", success=False)
-        await event.reply("❌ Erro ao processar pergunta")
-        try:
-            try:
-                await event.message.react("❌")
-        except:
-            pass
-
-def register_handlers():
+        await event.reply("❌ Erro ao processar pergunta")def register_handlers():
     """Registra handlers de eventos"""
     
     @client.on(events.NewMessage(pattern=r"^\.ia(?:\s|$)"))
