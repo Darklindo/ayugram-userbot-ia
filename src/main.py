@@ -30,6 +30,7 @@ from history_manager import HistoryManager
 from token_limiter import TokenLimiter
 from stats_manager import StatsManager
 from utils import edit_long_message, split_message
+from security import SecurityManager
 
 # Importar handlers modulares
 from handlers import (
@@ -60,6 +61,7 @@ history_manager = HistoryManager(max_messages=5)
 token_limiter = TokenLimiter(default_limit="medium")
 stats_manager = StatsManager()
 cooldown_manager = CooldownManager(default_cooldown=5)
+security_manager = SecurityManager(max_prompt_length=2000, max_requests_per_minute=10)
 reconnect_task = None
 
 
@@ -198,6 +200,21 @@ async def handle_ia_command(event, provider: str = None):
     
     prompt = parts[1]
     
+    # Validar tamanho do prompt (segurança)
+    valid, error_msg = await security_manager.validate_prompt(prompt)
+    if not valid:
+        await event.reply(f"❌ {error_msg}")
+        return
+    
+    # Verificar rate limit por minuto (segurança)
+    allowed, error_msg = await security_manager.check_rate_limit(sender.id)
+    if not allowed:
+        await event.reply(f"❌ {error_msg}")
+        return
+    
+    # Sanitizar prompt
+    prompt = SecurityManager.sanitize_prompt(prompt)
+    
     # Parse de flags de limite de tokens e modo privado
     prompt, token_limit, private_mode = token_limiter.parse_flags(prompt)
     
@@ -275,15 +292,20 @@ async def handle_ia_command(event, provider: str = None):
         # Registrar nas estatísticas
         await stats_manager.record_query(sender.id, provider or "padrão", success=True)
         
+        # Registrar requisição para rate limiting
+        await security_manager.record_request(sender.id)
+        
         # ✅ APLICAR COOLDOWN APÓS SUCESSO (não antes)
         await cooldown_manager.set_cooldown(sender.id)
     
     except FloodWaitError as e:
-        logger.warning(f"FloodWait ao processar IA: aguardando {e.seconds}s")
+        user_hash = SecurityManager.hash_user_id(sender.id)
+        logger.warning(f"FloodWait do usuário {user_hash}: aguardando {e.seconds}s")
         await stats_manager.record_query(sender.id, provider or "padrão", success=False)
         await event.reply(f"⏸️ Muitas requisições. Aguarde {e.seconds}s")
     except Exception as e:
-        logger.exception("Erro ao processar comando de IA")
+        user_hash = SecurityManager.hash_user_id(sender.id)
+        logger.exception(f"Erro ao processar pergunta do usuário {user_hash}")
         await stats_manager.record_query(sender.id, provider or "padrão", success=False)
         await event.reply("❌ Erro ao processar pergunta")
 
@@ -361,6 +383,9 @@ async def main():
     logger.info(f"[+] IAs Disponíveis: {', '.join(ia_manager.get_available_providers())}")
     logger.info(f"[+] Dono: {CONFIG['OWNER_ID']}")
     logger.info(f"[+] Usuários com permissão: {len(await perm_manager.get_all())}")
+    logger.info("[+] Segurança ativada (validação, sanitização, rate limiting)")
+    logger.info(f"[+] Max prompt: {security_manager.max_prompt_length} chars")
+    logger.info(f"[+] Rate limit: {security_manager.max_requests_per_minute}/min")
     logger.info("[+] Aguardando comandos...")
     logger.info("[+] Use .help para ver os comandos disponíveis")
     logger.info("[+] Pressione Ctrl+C para parar")
