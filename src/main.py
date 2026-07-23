@@ -151,6 +151,16 @@ async def handle_ia_command(event, provider: str = None):
     
     prompt = parts[1]
     
+    # Se for resposta a mensagem, usar o texto da mensagem original como contexto
+    if event.reply_to_msg_id:
+        try:
+            replied_msg = await event.get_reply_message()
+            if replied_msg and replied_msg.text:
+                # Combinar texto da mensagem original com a pergunta
+                prompt = f"{replied_msg.text}\n\nPergunta: {prompt}"
+        except Exception as e:
+            logger.warning(f"Erro ao obter mensagem respondida: {e}")
+    
     # Definir cooldown ANTES de processar
     cooldown_manager.set_cooldown(sender.id)
     
@@ -188,11 +198,7 @@ def register_handlers():
         """Comando .ia [pergunta] - usa IA padrao"""
         await handle_ia_command(event, provider=None)
     
-    @client.on(events.NewMessage(pattern=r"^\.iagemini(?:\s|$)"))
-    async def handle_ia_gemini(event):
-        """Comando .iagemini [pergunta] - força Gemini"""
-        await handle_ia_command(event, provider="gemini")
-    
+
     @client.on(events.NewMessage(pattern=r"^\.iagroq(?:\s|$)"))
     async def handle_ia_groq(event):
         """Comando .iagroq [pergunta] - força Groq"""
@@ -219,7 +225,6 @@ def register_handlers():
             available = ", ".join(ia_manager.get_available_providers())
             msg = f"IA padrao: {current}\n"
             msg += f"Disponiveis: {available}\n\n"
-            msg += ".ai gemini\n"
             msg += ".ai groq\n"
             msg += ".ai openrouter"
             await event.reply(msg)
@@ -293,10 +298,12 @@ def register_handlers():
 
 Comandos de IA:
 .ia [pergunta] - Usa IA padrao
-.iagemini [pergunta] - Força Gemini
 .iagroq [pergunta] - Força Groq
 .iarouter [pergunta] - Força OpenRouter
-.ai [gemini|groq|openrouter] - Define IA padrao
+.ai [groq|openrouter] - Define IA padrao
+
+RESPOSTA A MENSAGENS:
+Responda uma mensagem com .ia [pergunta] para usar a IA nela
 
 Permissoes (dono):
 .perm [ID] - Dar permissao
@@ -309,8 +316,11 @@ Info:
 
 Exemplo:
 .ia Qual eh a capital do Brasil?
-.iagroq Como criar uma API em Python?
-.ai groq"""
+.iagroq Como criar uma API?
+.ai groq
+
+Responder mensagem:
+Responda: .ia Qual eh a capital?"""
         await event.reply(help_text)
     
     @client.on(events.NewMessage(pattern=r"^\.status(?:\s|$)"))

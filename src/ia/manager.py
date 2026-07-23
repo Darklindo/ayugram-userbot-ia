@@ -7,7 +7,6 @@ import json
 import os
 from typing import Optional, Dict
 from .base import IAProvider
-from .gemini import GeminiProvider
 from .groq import GroqProvider
 from .openrouter import OpenRouterProvider
 
@@ -17,7 +16,6 @@ class IAManager:
     """Gerencia multiplos provedores de IA com fallback automático"""
     
     PROVIDERS = {
-        "gemini": GeminiProvider,
         "groq": GroqProvider,
         "openrouter": OpenRouterProvider,
     }
@@ -35,8 +33,8 @@ class IAManager:
         "openrouter": 60,
     }
     
-    # Ordem de fallback: Groq (principal) -> OpenRouter -> Gemini
-    FALLBACK_ORDER = ["groq", "openrouter", "gemini"]
+    # Ordem de fallback: Groq (principal) -> OpenRouter
+    FALLBACK_ORDER = ["groq", "openrouter"]
     
     def __init__(self, default_provider: str, api_keys: Dict[str, str]):
         """
@@ -156,7 +154,7 @@ class IAManager:
         if response.startswith("Erro"):
             logger.warning(f"Fallback: {self.default_provider} falhou, tentando outros...")
             
-            # Ordem de fallback: Groq -> OpenRouter -> Gemini
+            # Ordem de fallback: Groq -> OpenRouter
             current_idx = self.FALLBACK_ORDER.index(self.default_provider) if self.default_provider in self.FALLBACK_ORDER else 0
             
             for i in range(1, len(self.FALLBACK_ORDER)):
