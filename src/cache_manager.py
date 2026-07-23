@@ -148,17 +148,23 @@ class RetryManager:
             f"(max_retries={max_retries}, base_delay={base_delay}s, max_delay={max_delay}s)"
         )
     
-    async def execute_with_retry(self, coro, error_codes: tuple = (429, 500, 502, 503, 504)):
+    async def execute_with_retry(self, coro_or_func, error_codes: tuple = (429, 500, 502, 503, 504)):
         """
         Executa coroutine com retry automático
         
-        coro: Coroutine a executar
+        coro_or_func: Coroutine ou função que retorna coroutine
         error_codes: Códigos de erro que disparam retry
         """
         last_exception = None
         
         for attempt in range(self.max_retries + 1):
             try:
+                # Se for função, chamar para obter coroutine
+                if callable(coro_or_func) and not hasattr(coro_or_func, 'send'):
+                    coro = coro_or_func()
+                else:
+                    coro = coro_or_func
+                
                 result = await coro
                 
                 if attempt > 0:
