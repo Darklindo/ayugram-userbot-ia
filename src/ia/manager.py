@@ -1,5 +1,5 @@
 """
-Gerenciador de provedores de IA
+Gerenciador de provedores de IA com fallback automático
 """
 
 import logging
@@ -14,7 +14,7 @@ from .openrouter import OpenRouterProvider
 logger = logging.getLogger(__name__)
 
 class IAManager:
-    """Gerencia multiplos provedores de IA"""
+    """Gerencia multiplos provedores de IA com fallback automático"""
     
     PROVIDERS = {
         "gemini": GeminiProvider,
@@ -35,12 +35,15 @@ class IAManager:
         "openrouter": 60,
     }
     
+    # Ordem de fallback: Groq (principal) -> Gemini -> OpenRouter
+    FALLBACK_ORDER = ["groq", "gemini", "openrouter"]
+    
     def __init__(self, default_provider: str, api_keys: Dict[str, str]):
         """
         Inicializa o gerenciador
         
-        default_provider: 'gemini', 'deepseek' ou 'openai'
-        api_keys: {'gemini': 'chave', 'deepseek': 'chave', 'openai': 'chave'}
+        default_provider: 'gemini', 'groq' ou 'openrouter'
+        api_keys: {'gemini': 'chave', 'groq': 'chave', 'openrouter': 'chave'}
         """
         self.default_provider = self._resolve_alias(default_provider).lower()
         self.api_keys = api_keys
@@ -118,15 +121,16 @@ class IAManager:
     
     async def process(self, prompt: str, provider: Optional[str] = None) -> str:
         """
-        Processa uma pergunta
+        Processa uma pergunta com fallback automático
         
         prompt: A pergunta
         provider: Provider especifico (opcional, usa o padrao se nao informado)
         """
         if provider:
+            # Usar provider especifico sem fallback
             provider = self._resolve_alias(provider).lower()
             if provider not in self.PROVIDERS:
-                return f"Erro: Provider desconhecido '{provider}'. Use: gemini, deepseek, openai"
+                return f"Erro: Provider desconhecido '{provider}'. Use: gemini, groq, openrouter"
             
             if provider not in self.api_keys:
                 return f"Erro: API key nao configurada para {provider}"
@@ -145,7 +149,40 @@ class IAManager:
         if not self.current_provider:
             await self.init()
         
-        return await self.current_provider.process(prompt)
+        # Tentar com provider padrao
+        response = await self.current_provider.process(prompt)
+        
+        # Se falhar, tentar fallback automatico
+        if response.startswith("Erro"):
+            logger.warning(f"Fallback: {self.default_provider} falhou, tentando outros...")
+            
+            # Ordem de fallback: Groq -> Gemini -> OpenRouter
+            current_idx = self.FALLBACK_ORDER.index(self.default_provider) if self.default_provider in self.FALLBACK_ORDER else 0
+            
+            for i in range(1, len(self.FALLBACK_ORDER)):
+                fallback_name = self.FALLBACK_ORDER[(current_idx + i) % len(self.FALLBACK_ORDER)]
+                
+                if fallback_name not in self.api_keys:
+                    continue
+                
+                try:
+                    if fallback_name not in self.providers:
+                        provider_class = self.PROVIDERS[fallback_name]
+                        self.providers[fallback_name] = provider_class(self.api_keys[fallback_name])
+                        await self.providers[fallback_name].init_session()
+                    
+                    logger.info(f"Tentando fallback com {fallback_name}")
+                    response = await self.providers[fallback_name].process(prompt)
+                    
+                    if not response.startswith("Erro"):
+                        logger.info(f"Fallback bem-sucedido com {fallback_name}")
+                        return response
+                
+                except Exception as e:
+                    logger.warning(f"Fallback com {fallback_name} falhou: {e}")
+                    continue
+        
+        return response
     
     async def close_all(self):
         """Fecha todas as sessoes"""
