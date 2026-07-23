@@ -417,12 +417,12 @@ async def handle_iamemory_command(event, memory_mgr=None, ia_mgr=None, token_lim
         prompt = f"Contexto anterior:\n{context}\n\n{prompt}"
     
     try:
-        processing_msg = await event.reply("⏳ Processando com memória...")
+        processing_msg = await event.reply("⏳ Processando com memória (Groq)...")
         timeout = ia_manager.get_timeout(None)
         
         try:
             response = await asyncio.wait_for(
-                ia_manager.process(prompt, provider=None),
+                ia_manager.process(prompt, provider="groq"),
                 timeout=timeout
             )
         except asyncio.TimeoutError:
